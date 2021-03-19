@@ -1,5 +1,5 @@
 /**
- * Use this file to configure your truffle project. It's seeded with some
+ * Use this file to configure your truffle project. It"s seeded with some
  * common settings for different networks and features like migrations,
  * compilation and testing. Uncomment the ones you need or modify
  * them to suit your project as necessary.
@@ -8,8 +8,8 @@
  *
  * trufflesuite.com/docs/advanced/configuration
  *
- * To deploy via Infura you'll need a wallet provider (like @truffle/hdwallet-provider)
- * to sign your transactions before they're sent to a remote public node. Infura accounts
+ * To deploy via Infura you"ll need a wallet provider (like @truffle/hdwallet-provider)
+ * to sign your transactions before they"re sent to a remote public node. Infura accounts
  * are available for free at: infura.io/register.
  *
  * You'll also need a mnemonic - the twelve word phrase the wallet uses to generate
@@ -18,11 +18,14 @@
  *
  */
 
-// const HDWalletProvider = require('@truffle/hdwallet-provider');
-// const infuraKey = "fj4jll3k.....";
-//
-// const fs = require('fs');
-// const mnemonic = fs.readFileSync(".secret").toString().trim();
+const HDWalletProvider = require("@truffle/hdwallet-provider");
+
+const privateKey = fs.readFileSync(".secret").toString().trim();
+const fs = require("fs");
+
+const ropstenUrl = "https://ropsten.infura.io/v3/c010ef4cc4754cfba5eba886a7508afd";
+const bscTestnetUrl = "https://data-seed-prebsc-1-s1.binance.org:8545";
+const bscMainnetUrl = "https://bsc-dataseed.binance.org/";
 
 module.exports = {
   /**
@@ -41,13 +44,28 @@ module.exports = {
     // You should run a client (like ganache-cli, geth or parity) in a separate terminal
     // tab if you use this network and you must also set the `host`, `port` and `network_id`
     // options below to some value.
-    //
-    // development: {
-    //  host: "127.0.0.1",     // Localhost (default: none)
-    //  port: 8545,            // Standard Ethereum port (default: none)
-    //  network_id: "*",       // Any network (default: none)
-    // },
-    // Another network with more advanced options...
+    
+    development: {
+      host: "127.0.0.1",     // Localhost (default: none)
+      port: 8545,            // Standard Ethereum port (default: none)
+      network_id: "*",       // Any network (default: none)
+    },
+    bsc_testnet: {
+      provider: () => new HDWalletProvider([privateKey], bscTestnetUrl),
+      network_id: 97,
+    },
+    bsc_mainnet: {
+      provider: () => new HDWalletProvider([privateKey], bscMainnetUrl),
+      network_id: 56,
+    },
+    ropsten: {
+      provider: () => new HDWalletProvider([privateKey], ropstenUrl),
+      network_id: 3,       // Ropsten's id
+      gas: 5500000,        // Ropsten has a lower block limit than mainnet
+      confirmations: 2,    // # of confs to wait between deployments. (default: 0)
+      timeoutBlocks: 200,  // # of blocks before a deployment times out  (minimum/default: 50)
+      skipDryRun: true,     // Skip dry run before migrations? (default: false for public nets )
+    },
     // advanced: {
     // port: 8777,             // Custom port
     // network_id: 1342,       // Custom network
@@ -56,19 +74,10 @@ module.exports = {
     // from: <address>,        // Account to send txs from (default: accounts[0])
     // websocket: true        // Enable EventEmitter interface for web3 (default: false)
     // },
-    // Useful for deploying to a public network.
-    // NB: It's important to wrap the provider as a function.
-    // ropsten: {
-    // provider: () => new HDWalletProvider(mnemonic, `https://ropsten.infura.io/v3/YOUR-PROJECT-ID`),
-    // network_id: 3,       // Ropsten's id
-    // gas: 5500000,        // Ropsten has a lower block limit than mainnet
-    // confirmations: 2,    // # of confs to wait between deployments. (default: 0)
-    // timeoutBlocks: 200,  // # of blocks before a deployment times out  (minimum/default: 50)
-    // skipDryRun: true     // Skip dry run before migrations? (default: false for public nets )
-    // },
+    
     // Useful for private networks
     // private: {
-    // provider: () => new HDWalletProvider(mnemonic, `https://network.io`),
+    // provider: () => new HDWalletProvider([privateKey], `https://network.io`),
     // network_id: 2111,   // This network is yours, in the cloud.
     // production: true    // Treats this network as if it was a public net. (default: false)
     // }
@@ -76,22 +85,22 @@ module.exports = {
 
   // Set default mocha options here, use special reporters etc.
   mocha: {
-    // timeout: 100000
+    // timeout: 100000,
   },
 
   // Configure your compilers
   compilers: {
     solc: {
-       version: "0.6.0",    // Fetch exact version from solc-bin (default: truffle's version)
+        version: "0.6.0",    // Fetch exact version from solc-bin (default: truffle's version)
       // docker: true,        // Use "0.5.1" you've installed locally with docker (default: false)
       settings: {          // See the solidity docs for advice about optimization and evmVersion
-       optimizer: {
-         enabled: true,
-         runs: 200
-       },
-      //  evmVersion: "byzantium"
-      }
-    }
+        optimizer: {
+          enabled: true,
+          runs: 200,
+        },
+      //  evmVersion: "byzantium",
+      },
+    },
   },
 
   // Truffle DB is currently disabled by default; to enable it, change enabled: false to enabled: true
@@ -101,6 +110,6 @@ module.exports = {
   // $ truffle migrate --reset --compile-all
 
   db: {
-    enabled: false
-  }
+    enabled: false,
+  },
 };
