@@ -112,6 +112,7 @@ contract Market is Ownable {
         return bullToken;
     }
 
+    function 
     function create(address _collateralToken, uint256 _baseCurrencyID, uint256 _duration)
         public
     {
@@ -132,6 +133,9 @@ contract Market is Ownable {
         uint256 _initialBalance = 1000;
         uint256 _collateralBalance = _initialBalance * _collateralDecimals;
         uint256 _conditionalBalance = _collateralBalance / 2;
+
+        //Estamate swap fee
+        uint256 _swapFee = _collateralDecimals / 10 * 3 // 0.3%
 
         //Pull collateral tokens from sender
         IERC20(_collateralToken).transferFrom(msg.sender, address(this), _collateralBalance);
@@ -154,9 +158,15 @@ contract Market is Ownable {
         IERC20(_collateralToken).approve(address(_pool), _conditionalBalance);
 
         //Add tokens to the pool
-        _pool.bind(address(_bearToken), _conditionalBalance, _initial_balance * 10 * factory.BONE);
+        _pool.bind(address(_bearToken), _conditionalBalance, 10 * factory.BONE);
         _pool.bind(address(_bullToken), _conditionalBalance, 10 * factory.BONE);
         _pool.bind(_collateralToken, _collateralBalance, 20 * factory.BONE);
+
+        //Set the swap fee
+        _pool.setSwapFee(_swapFee)
+
+        //Release the pool and allow public swaps
+        _pool.release();
 
         //Get chainlink price feed by _baseCurrencyID
         address _chainlinkPriceFeed =
