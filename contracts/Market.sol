@@ -35,6 +35,7 @@ contract Market is Ownable {
         address collateralToken;
         address bearToken;
         address bullToken;
+        BPool pool;
     }
 
     mapping(uint256 => MarketStruct) public markets;
@@ -44,8 +45,10 @@ contract Market is Ownable {
 
     AggregatorV3Interface internal priceFeed;
     IERC20 public collateral;
+    BFactory factory;
 
-    constructor() public {
+    constructor(address _factory) public {
+        factory = BFactory(_factory)
         baseCurrencyToChainlinkFeed[
             uint256(1)
         ] = 0x9326BFA02ADD2366b30bacB125260Af641031331; //Network: Kovan Aggregator: ETH/USD
@@ -109,10 +112,10 @@ contract Market is Ownable {
         return bullToken;
     }
 
-    function create(uint256 _baseCurrencyID, uint256 _duration)
+    function create(address _collateralToken, uint256 _baseCurrencyID, uint256 _duration)
         public
-        onlyOwner
     {
+        //TODO: check if _collateralToken is a valid ERC20 contract
         require(
             baseCurrencyToChainlinkFeed[_baseCurrencyID] != address(0),
             "Invalid base currency"
@@ -122,15 +125,38 @@ contract Market is Ownable {
             "Invalid duration"
         );
 
-        //TODO: accept _collateralToken as function parameter and check it is a valid ERC20 contract
-        address _collateralToken = 0xdAC17F958D2ee523a2206206994597C13D831ec7; //USDT
+        uint256 _collateralDecimals = IERC20(_collateralToken).decimals();
+
+        //Estamate balance tokens
+        //TODO: ask about initial balance
+        uint256 _initialBalance = 1000;
+        uint256 _collateralBalance = _initialBalance * _collateralDecimals;
+        uint256 _conditionalBalance = _collateralBalance / 2;
+
+        //Pull collateral tokens from sender
+        IERC20(_collateralToken).transferFrom(msg.sender, address(this), _collateralBalance);
 
         //Contract factory (clone) for two ERC20 tokens
         //TODO: determine collateral decimals and set to bear / bull tokens
-        address _bearToken = address(cloneBearToken());
-        address _bullToken = address(cloneBullToken());
+        BearToken _bearToken = cloneBearToken();
+        BullToken _bullToken = cloneBullToken();
 
-        //TODO: Call balancer contract
+        //Mint bear and bull tokens
+        _bullToken.mint(address(this), _conditionalBalance);
+        _bearToken.mint(address(this), _conditionalBalance);
+
+        //Create a pool of the balancer
+        _pool = factory.newBPool();
+
+        //Approve pool
+        _bearToken.approve(address(_pool), _conditionalBalance);
+        _bullToken.approve(address(_pool), _conditionalBalance);
+        IERC20(_collateralToken).approve(address(_pool), _conditionalBalance);
+
+        //Add tokens to the pool
+        _pool.bind(address(_bearToken), _conditionalBalance, _initial_balance * 10 * factory.BONE);
+        _pool.bind(address(_bullToken), _conditionalBalance, 10 * factory.BONE);
+        _pool.bind(_collateralToken, _collateralBalance, 20 * factory.BONE);
 
         //Get chainlink price feed by _baseCurrencyID
         address _chainlinkPriceFeed =
@@ -154,8 +180,9 @@ contract Market is Ownable {
                 totalDeposit: 0,
                 totalRedemption: 0,
                 collateralToken: _collateralToken,
-                bearToken: _bearToken,
-                bullToken: _bullToken
+                bearToken: address(_bearToken),
+                bullToken: address(_bullToken),
+                pool: address(_pool),
             });
 
         markets[currentMarketID] = marketStruct;
