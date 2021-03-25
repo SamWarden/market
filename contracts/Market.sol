@@ -50,7 +50,6 @@ contract Market is Ownable {
     BFactory factory;
 
     //Constants
-    //
     uint256 public constant CONDITIONAL_TOKEN_WEIGHT = 10 * factory.BONE;
     uint256 public constant COLLATERAL_TOKEN_WEIGHT  = CONDITIONAL_TOKEN_WEIGHT * 2;
 
@@ -226,29 +225,10 @@ contract Market is Ownable {
         currentMarketID++;
     }
 
-    function pause(uint256 _marketID) public onlyOwner {
-        require(markets[_marketID].exist, "Market doesn't exist");
-        require(markets[_marketID].status == Status.Running, "Invalid status");
-
-        markets[_marketID].status = Status.Paused;
-
-        emit Paused(_marketID, now);
-    }
-
-    function resume(uint256 _marketID) public onlyOwner {
-        require(markets[_marketID].exist, "Market doesn't exist");
-        require(markets[_marketID].status == Status.Paused, "Invalid status");
-
-        markets[_marketID].status = Status.Running;
-
-        emit Resumed(_marketID, now);
-    }
-
     function close(uint256 _marketID) public {
         require(markets[_marketID].exist, "Market doesn't exist");
         require(
-            markets[_marketID].status == Status.Running ||
-                markets[_marketID].status == Status.Paused,
+            markets[_marketID].status != Status.Closed,
             "Market has already been closed"
         );
         require(
