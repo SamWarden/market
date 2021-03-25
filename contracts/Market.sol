@@ -5,8 +5,10 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
+import "./balancer/BPool.sol";
 import "./BearToken.sol";
 import "./BullToken.sol";
+import "./ConditionalToken.sol";
 
 contract Market is Ownable {
     //TODO: add more info to events
@@ -99,20 +101,32 @@ contract Market is Ownable {
         return price;
     }
 
-    function cloneBearToken() internal onlyOwner returns (BearToken) {
+    function cloneBearToken() internal returns (BearToken) {
         BearToken bearToken = new BearToken();
         emit NewBearToken(address(bearToken), now);
         // bearToken.setController(msg.sender);
         return bearToken;
     }
 
-    function cloneBullToken() internal onlyOwner returns (BullToken) {
+    function cloneBullToken() internal returns (BullToken) {
         BullToken bullToken = new BullToken();
         emit NewBullToken(address(bullToken), now);
         return bullToken;
     }
 
-    function 
+    function addConditionalToken(BPool _pool, ConditionalToken _conditionalToken, uint256 _conditionalBalance)
+        internal
+    {
+        //Mint bear and bull tokens
+        _conditionalToken.mint(address(this), _conditionalBalance);
+
+        //Approve pool
+        _conditionalToken.approve(address(_pool), _conditionalBalance);
+
+        //Add tokens to the pool
+        _pool.bind(address(_conditionalToken), _conditionalBalance, 10 * factory.BONE);
+    }
+
     function create(address _collateralToken, uint256 _baseCurrencyID, uint256 _duration)
         public
     {
@@ -135,31 +149,28 @@ contract Market is Ownable {
         uint256 _conditionalBalance = _collateralBalance / 2;
 
         //Estamate swap fee
-        uint256 _swapFee = _collateralDecimals / 10 * 3 // 0.3%
+        uint256 _swapFee = _collateralDecimals / 10 * 3; // 0.3%
 
         //Pull collateral tokens from sender
+        //TODO: try to make the transfer to the pool directly
         IERC20(_collateralToken).transferFrom(msg.sender, address(this), _collateralBalance);
+
+        //Create a pool of the balancer
+        BPool _pool = factory.newBPool();
 
         //Contract factory (clone) for two ERC20 tokens
         //TODO: determine collateral decimals and set to bear / bull tokens
-        BearToken _bearToken = cloneBearToken();
-        BullToken _bullToken = cloneBullToken();
+        ConditionalToken _bearToken = cloneBearToken();
+        ConditionalToken _bullToken = cloneBullToken();
 
-        //Mint bear and bull tokens
-        _bullToken.mint(address(this), _conditionalBalance);
-        _bearToken.mint(address(this), _conditionalBalance);
-
-        //Create a pool of the balancer
-        _pool = factory.newBPool();
+        //Add conditional tokens to the pool
+        addConditionalToken(_pool, _bearToken, _conditionalBalance);
+        addConditionalToken(_pool, _bullToken, _conditionalBalance);
 
         //Approve pool
-        _bearToken.approve(address(_pool), _conditionalBalance);
-        _bullToken.approve(address(_pool), _conditionalBalance);
-        IERC20(_collateralToken).approve(address(_pool), _conditionalBalance);
+        IERC20(_collateralToken).approve(address(_pool), _collateralBalance);
 
         //Add tokens to the pool
-        _pool.bind(address(_bearToken), _conditionalBalance, 10 * factory.BONE);
-        _pool.bind(address(_bullToken), _conditionalBalance, 10 * factory.BONE);
         _pool.bind(_collateralToken, _collateralBalance, 20 * factory.BONE);
 
         //Set the swap fee
@@ -221,7 +232,7 @@ contract Market is Ownable {
         emit Resumed(_marketID, now);
     }
 
-    function close(uint256 _marketID) public onlyOwner {
+    function close(uint256 _marketID) public {
         require(markets[_marketID].exist, "Market doesn't exist");
         require(
             markets[_marketID].status == Status.Running ||
