@@ -43,11 +43,16 @@ contract Market is Ownable {
     mapping(uint256 => MarketStruct) public markets;
     mapping(uint256 => address) public baseCurrencyToChainlinkFeed;
 
+    //Variables
     uint256 public currentMarketID = 1;
 
     AggregatorV3Interface internal priceFeed;
-    IERC20 public collateral;
     BFactory factory;
+
+    //Constants
+    //
+    uint256 public constant CONDITIONAL_TOKEN_WEIGHT = 10 * factory.BONE;
+    uint256 public constant COLLATERAL_TOKEN_WEIGHT  = CONDITIONAL_TOKEN_WEIGHT * 2;
 
     constructor(address _factory) public {
         factory = BFactory(_factory)
@@ -120,11 +125,7 @@ contract Market is Ownable {
         //Mint bear and bull tokens
         _conditionalToken.mint(address(this), _conditionalBalance);
 
-        //Approve pool
-        _conditionalToken.approve(address(_pool), _conditionalBalance);
-
-        //Add tokens to the pool
-        _pool.bind(address(_conditionalToken), _conditionalBalance, 10 * factory.BONE);
+        addToken(_pool, _conditionalToken, _conditionalBalance, CONDITIONAL_TOKEN_WEIGHT);
     }
 
     function addCollateralToken(BPool _pool, IERC20 _collateralToken, uint256 _collateralBalance)
@@ -134,11 +135,17 @@ contract Market is Ownable {
         //TODO: try to make the transfer to the pool directly
         _collateralToken.transferFrom(msg.sender, address(this), _collateralBalance);
 
+        addToken(_pool, _collateralToken, _collateralBalance, COLLATERAL_TOKEN_WEIGHT);
+    }
+
+    function addToken(BPool _pool, IERC20 token, uint256 balance, uint256 denorm)
+        internal
+    {
         //Approve pool
-        _collateralToken.approve(address(_pool), _collateralBalance);
+        token.approve(address(_pool), balance);
 
         //Add tokens to the pool
-        _pool.bind(address(_collateralToken), _collateralBalance, 20 * factory.BONE);
+        _pool.bind(address(token), balance, denorm);
     }
 
     function create(address _collateralToken, uint256 _baseCurrencyID, uint256 _duration)
@@ -163,7 +170,7 @@ contract Market is Ownable {
         uint256 _conditionalBalance = _collateralBalance / 2;
 
         //Estamate swap fee
-        uint256 _swapFee = _collateralDecimals / 10 * 3; // 0.3%
+        uint256 _swapFee = _collateralDecimals / 1000 * 3; // 0.3%
 
         //Create a pool of the balancer
         BPool _pool = factory.newBPool();
