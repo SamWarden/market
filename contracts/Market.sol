@@ -127,6 +127,20 @@ contract Market is Ownable {
         _pool.bind(address(_conditionalToken), _conditionalBalance, 10 * factory.BONE);
     }
 
+    function addCollateralToken(BPool _pool, IERC20 _collateralToken, uint256 _collateralBalance)
+        internal
+    {
+        //Pull collateral tokens from sender
+        //TODO: try to make the transfer to the pool directly
+        _collateralToken.transferFrom(msg.sender, address(this), _collateralBalance);
+
+        //Approve pool
+        _collateralToken.approve(address(_pool), _collateralBalance);
+
+        //Add tokens to the pool
+        _pool.bind(address(_collateralToken), _collateralBalance, 20 * factory.BONE);
+    }
+
     function create(address _collateralToken, uint256 _baseCurrencyID, uint256 _duration)
         public
     {
@@ -151,10 +165,6 @@ contract Market is Ownable {
         //Estamate swap fee
         uint256 _swapFee = _collateralDecimals / 10 * 3; // 0.3%
 
-        //Pull collateral tokens from sender
-        //TODO: try to make the transfer to the pool directly
-        IERC20(_collateralToken).transferFrom(msg.sender, address(this), _collateralBalance);
-
         //Create a pool of the balancer
         BPool _pool = factory.newBPool();
 
@@ -163,15 +173,10 @@ contract Market is Ownable {
         ConditionalToken _bearToken = cloneBearToken();
         ConditionalToken _bullToken = cloneBullToken();
 
-        //Add conditional tokens to the pool
+        //Add conditional and collateral tokens to the pool
         addConditionalToken(_pool, _bearToken, _conditionalBalance);
         addConditionalToken(_pool, _bullToken, _conditionalBalance);
-
-        //Approve pool
-        IERC20(_collateralToken).approve(address(_pool), _collateralBalance);
-
-        //Add tokens to the pool
-        _pool.bind(_collateralToken, _collateralBalance, 20 * factory.BONE);
+        addCollateralToken(_pool, IERC20(_collateralToken), _collateralBalance);
 
         //Set the swap fee
         _pool.setSwapFee(_swapFee)
