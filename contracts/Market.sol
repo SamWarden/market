@@ -226,7 +226,7 @@ contract Market is Ownable {
 
     function calcSwapFee(uint8 _decimals) public returns (uint8) {
         //TODO: correct the calculation
-        return _decimals / 1000 * 3; // 0.3%
+        return 10 ** _decimals / 1000 * 3; // 0.3%
     }
 
     function close(uint256 _marketID) public {
