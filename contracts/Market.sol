@@ -169,7 +169,7 @@ contract Market is Ownable {
         uint256 _conditionalBalance = _collateralBalance / 2;
 
         //Estamate swap fee
-        uint256 _swapFee = _collateralDecimals / 1000 * 3; // 0.3%
+        uint256 _swapFee = calcSwapFee(_collateralDecimals);
 
         //Create a pool of the balancer
         BPool _pool = factory.newBPool();
@@ -223,6 +223,10 @@ contract Market is Ownable {
 
         //Increment current market ID
         currentMarketID++;
+    }
+
+    function calcSwapFee(uint256 _decimals) public returns (uint256) {
+        return _decimals / 1000 * 3; // 0.3%
     }
 
     function close(uint256 _marketID) public {
