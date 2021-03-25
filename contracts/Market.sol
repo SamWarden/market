@@ -6,8 +6,6 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "./balancer/BPool.sol";
-import "./BearToken.sol";
-import "./BullToken.sol";
 import "./ConditionalToken.sol";
 
 contract Market is Ownable {
@@ -105,15 +103,15 @@ contract Market is Ownable {
         return price;
     }
 
-    function cloneBearToken() internal returns (BearToken) {
-        BearToken bearToken = new BearToken();
+    function cloneBearToken(uint8 _decimals) internal returns (ConditionalToken) {
+        ConditionalToken bearToken = new ConditionalToken("Bear", "Bear", _decimals);
         emit NewBearToken(address(bearToken), now);
         // bearToken.setController(msg.sender);
         return bearToken;
     }
 
-    function cloneBullToken() internal returns (BullToken) {
-        BullToken bullToken = new BullToken();
+    function cloneBullToken(uint8 _decimals) internal returns (ConditionalToken) {
+        ConditionalToken bullToken = new ConditionalToken("Bull", "Bull", _decimals);
         emit NewBullToken(address(bullToken), now);
         return bullToken;
     }
@@ -143,7 +141,7 @@ contract Market is Ownable {
         //Approve pool
         token.approve(address(_pool), balance);
 
-        //Add tokens to the pool
+        //Add token to the pool
         _pool.bind(address(token), balance, denorm);
     }
 
@@ -160,7 +158,7 @@ contract Market is Ownable {
             "Invalid duration"
         );
 
-        uint256 _collateralDecimals = IERC20(_collateralToken).decimals();
+        uint8 _collateralDecimals = IERC20(_collateralToken).decimals();
 
         //Estamate balance tokens
         //TODO: ask about initial balance
@@ -168,16 +166,17 @@ contract Market is Ownable {
         uint256 _collateralBalance = _initialBalance * _collateralDecimals;
         uint256 _conditionalBalance = _collateralBalance / 2;
 
-        //Estamate swap fee
+        //Calculate swap fee
+        //TODO: correct the calculation
         uint256 _swapFee = calcSwapFee(_collateralDecimals);
 
         //Create a pool of the balancer
+        //TODO: add clone-factory to the factory
         BPool _pool = factory.newBPool();
 
         //Contract factory (clone) for two ERC20 tokens
-        //TODO: determine collateral decimals and set to bear / bull tokens
-        ConditionalToken _bearToken = cloneBearToken();
-        ConditionalToken _bullToken = cloneBullToken();
+        ConditionalToken _bearToken = cloneBearToken(_collateralDecimals);
+        ConditionalToken _bullToken = cloneBullToken(_collateralDecimals);
 
         //Add conditional and collateral tokens to the pool
         addConditionalToken(_pool, _bearToken, _conditionalBalance);
@@ -225,7 +224,8 @@ contract Market is Ownable {
         currentMarketID++;
     }
 
-    function calcSwapFee(uint256 _decimals) public returns (uint256) {
+    function calcSwapFee(uint8 _decimals) public returns (uint8) {
+        //TODO: correct the calculation
         return _decimals / 1000 * 3; // 0.3%
     }
 
