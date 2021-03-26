@@ -4,6 +4,7 @@ pragma solidity ^0.6.0;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "./balancer/BPool.sol";
 import "./ConditionalToken.sol";
@@ -47,15 +48,23 @@ contract Market is Ownable {
     AggregatorV3Interface internal priceFeed;
     BFactory factory;
 
+    address private bearToken;
+    address private bullToken;
+
     //Constants
     uint256 public constant CONDITIONAL_TOKEN_WEIGHT = 10 * factory.BONE;
     uint256 public constant COLLATERAL_TOKEN_WEIGHT  = CONDITIONAL_TOKEN_WEIGHT * 2;
 
     constructor(address _factory) public {
-        factory = BFactory(_factory)
+        factory = BFactory(_factory);
+        
+        ConditionalToken bearToken = address(new ConditionalToken("Bear", "Bear"));
+        ConditionalToken bullToken = address(new ConditionalToken("BearBull", "Bull"));
+
+        //Network: Kovan Aggregator: ETH/USD
         baseCurrencyToChainlinkFeed[
             uint256(1)
-        ] = 0x9326BFA02ADD2366b30bacB125260Af641031331; //Network: Kovan Aggregator: ETH/USD
+        ] = 0x9326BFA02ADD2366b30bacB125260Af641031331;
     }
 
     /**
@@ -104,16 +113,17 @@ contract Market is Ownable {
     }
 
     function cloneBearToken(uint8 _decimals) internal returns (ConditionalToken) {
-        ConditionalToken bearToken = new ConditionalToken("Bear", "Bear", _decimals);
-        emit NewBearToken(address(bearToken), now);
-        // bearToken.setController(msg.sender);
-        return bearToken;
+        address _bearToken = Clones.clone(bearToken);
+        emit NewBearToken(_bearToken, now);
+        ConditionalToken(_bearToken).cloneConstructor(_decimals)
+        return ConditionalToken(_bearToken);
     }
 
     function cloneBullToken(uint8 _decimals) internal returns (ConditionalToken) {
-        ConditionalToken bullToken = new ConditionalToken("Bull", "Bull", _decimals);
-        emit NewBullToken(address(bullToken), now);
-        return bullToken;
+        address _bullToken = Clones.clone(bullToken);
+        emit NewBullToken(_bullToken, now);
+        ConditionalToken(_bullToken).cloneConstructor(_decimals)
+        return ConditionalToken(_bullToken);
     }
 
     function addConditionalToken(BPool _pool, ConditionalToken _conditionalToken, uint256 _conditionalBalance)
@@ -162,6 +172,7 @@ contract Market is Ownable {
 
         //Estamate balance tokens
         //TODO: ask about initial balance
+        //TODO: think what if collaterDecimals is small
         uint256 _initialBalance = 1000;
         uint256 _collateralBalance = _initialBalance * _collateralDecimals;
         uint256 _conditionalBalance = _collateralBalance / 2;
@@ -184,7 +195,7 @@ contract Market is Ownable {
         addCollateralToken(_pool, IERC20(_collateralToken), _collateralBalance);
 
         //Set the swap fee
-        _pool.setSwapFee(_swapFee)
+        _pool.setSwapFee(_swapFee);
 
         //Release the pool and allow public swaps
         _pool.release();
@@ -213,7 +224,7 @@ contract Market is Ownable {
                 collateralToken: _collateralToken,
                 bearToken: address(_bearToken),
                 bullToken: address(_bullToken),
-                pool: address(_pool),
+                pool: address(_pool)
             });
 
         markets[currentMarketID] = marketStruct;
