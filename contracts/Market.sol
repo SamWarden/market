@@ -15,6 +15,7 @@ contract Market is BPool, Ownable {
 
     modifier atStage(Stages _stage) {
         require(stage == _stage, "Function called in wrong stage");
+        _;
     }
 
     constructor() public {}
@@ -28,12 +29,7 @@ contract Market is BPool, Ownable {
         return stage;
     }
 
-    function close(uint256 _marketID) public {
-        require(markets[_marketID].exist, "Market doesn't exist");
-        require(
-            markets[_marketID].status != Status.Closed,
-            "Market has already been closed"
-        );
+    function close(uint256 _marketID) public atStage(Stages.Open) {
         require(
             SafeMath.add(
                 markets[_marketID].created,
@@ -60,7 +56,7 @@ contract Market is BPool, Ownable {
     }
 
     //Buy new token pair for collateral token
-    function buy(uint256 _marketID, uint256 _amount) external {
+    function buy(uint256 _marketID, uint256 _amount) external atStage(Stages.Open) {
         require(markets[_marketID].exist, "Market doesn't exist");
         require(markets[_marketID].status == Status.Running, "Invalid status");
         require(_amount > 0, "Invalid amount");
@@ -79,7 +75,7 @@ contract Market is BPool, Ownable {
         emit Buy(_marketID, now);
     }
 
-    function redeem(uint256 _marketID, uint256 _amount) external {
+    function redeem(uint256 _marketID, uint256 _amount) external atStage(Stages.Open) {
         require(markets[_marketID].exist, "Market doesn't exist");
         require(markets[_marketID].status == Status.Closed, "Invalid status");
         require(_amount > 0, "Invalid amount");
