@@ -7,9 +7,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "./balancer/BPool.sol";
+import "./balancer/BFactory.sol";
 import "./ConditionalToken.sol";
 
-contract Market is Ownable {
+contract MarketFactory is Ownable {
     //TODO: add more info to events
     event Created(uint256 indexed marketID, uint256 _time);
     event Paused(uint256 indexed marketID, uint256 _time);
@@ -59,8 +60,9 @@ contract Market is Ownable {
         factory = BFactory(_factory);
         
         ConditionalToken bearToken = address(new ConditionalToken("Bear", "Bear"));
-        ConditionalToken bullToken = address(new ConditionalToken("BearBull", "Bull"));
+        ConditionalToken bullToken = address(new ConditionalToken("Bull", "Bull"));
 
+        //Add moreoracles
         //Network: Kovan Aggregator: ETH/USD
         baseCurrencyToChainlinkFeed[
             uint256(1)
@@ -209,6 +211,7 @@ contract Market is Ownable {
 
         require(_initialPrice > 0, "Chainlink error");
 
+        //Make the market instead
         MarketStruct memory marketStruct =
             MarketStruct({
                 exist: true,
