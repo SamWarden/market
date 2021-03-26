@@ -22,6 +22,6 @@ contract ConditionalToken is ERC20, Ownable {
         public
         onlyOwner
     {
-        _mint(account, amount)
+        _mint(account, amount);
     }
 }
