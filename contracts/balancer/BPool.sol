@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity 0.5.12;
+pragma solidity ^0.6.0;
 
 import "./BToken.sol";
 import "./BMath.sol";
@@ -253,7 +253,7 @@ contract BPool is BBronze, BToken, BMath {
             bound: true,
             index: _tokens.length,
             denorm: 0,    // balance and denorm will be validated
-            balance: 0,   // and set by `rebind`
+            balance: 0   // and set by `rebind`
         });
         _tokens.push(token);
         rebind(token, balance, denorm);

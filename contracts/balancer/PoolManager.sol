@@ -1,4 +1,4 @@
-pragma solidity 0.5.12;
+pragma solidity ^0.6.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./BFactory.sol";
