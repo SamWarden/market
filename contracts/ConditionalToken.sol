@@ -8,9 +8,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract ConditionalToken is ERC20, Ownable {
     uint8 private _decimals;
 
-    constructor(string memory name_, string memory symbol_, uint8 decimals_) ERC20(name_, symbol_)
-        public
-    {
+    constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) public {}
+
+    function cloneConstructor(uint8 decimals_) public {
         _decimals = decimals_;
     }
 
