@@ -9,19 +9,22 @@ import "./balancer/BPool.sol";
 import "./ConditionalToken.sol";
 
 contract Market is BPool, Ownable {
-    enum Status {Created, Open, Closed}
+    enum Stages {Created, Open, Closed}
 
-    Status status = Status.Created;
+    Stages stage = Stages.Created;
+
+    modifier atStage(Stages _stage) {
+        require(stage == _stage, "Function called in wrong stage");
+    }
 
     constructor() public {}
 
-    function cloneConstructor () public onlyOwner {
-        require(status == status.Created, "Status has to be Created");
+    function cloneConstructor () public onlyOwner atStage(Stages.Created) {
 
-        status = Status.Open
+        stage = Stages.Open;
     }
 
-    function getStatus() public view returns (Status) {
-        return status;
+    function getStage() public view returns (Stages) {
+        return stage;
     }
 }
