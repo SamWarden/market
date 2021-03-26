@@ -47,8 +47,8 @@ contract MarketFactory is Ownable {
     AggregatorV3Interface internal priceFeed;
     BFactory private factory;
 
-    address private bearToken;
-    address private bullToken;
+    address private baseBearToken;
+    address private baseBullToken;
 
     //Constants
     uint256 public constant CONDITIONAL_TOKEN_WEIGHT = 10.mul(BPool.BONE);
@@ -58,9 +58,9 @@ contract MarketFactory is Ownable {
         //TODO: what if to inherit the factory?
         BFactory factory = BFactory(_factory);
 
-        address implementationMarket = address(new Market());
-        address bearToken = address(new ConditionalToken("Bear", "Bear"));
-        address bullToken = address(new ConditionalToken("Bull", "Bull"));
+        address baseMarket = address(new Market());
+        address baseBearToken = address(new ConditionalToken("Bear", "Bear"));
+        address baseBullToken = address(new ConditionalToken("Bull", "Bull"));
 
         //Add moreoracles
         //Network: Kovan Aggregator: ETH/USD
@@ -160,14 +160,14 @@ contract MarketFactory is Ownable {
     }
 
     function cloneBearToken(uint8 _decimals) internal returns (ConditionalToken) {
-        address _bearToken = Clones.clone(bearToken);
+        address _bearToken = Clones.clone(baseBearToken);
         emit NewBearToken(_bearToken, now);
         ConditionalToken(_bearToken).cloneConstructor(_decimals)
         return ConditionalToken(_bearToken);
     }
 
     function cloneBullToken(uint8 _decimals) internal returns (ConditionalToken) {
-        address _bullToken = Clones.clone(bullToken);
+        address _bullToken = Clones.clone(baseBullToken);
         emit NewBullToken(_bullToken, now);
         ConditionalToken(_bullToken).cloneConstructor(_decimals)
         return ConditionalToken(_bullToken);
