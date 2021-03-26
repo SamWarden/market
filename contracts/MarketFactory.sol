@@ -11,9 +11,10 @@ import "./balancer/BFactory.sol";
 import "./ConditionalToken.sol";
 
 contract MarketFactory is Ownable {
+    using SafeMath for uint256, uint8;
+
     //TODO: add more info to events
     event Created(uint256 indexed marketID, uint256 _time);
-    event Paused(uint256 indexed marketID, uint256 _time);
     event Resumed(uint256 indexed marketID, uint256 _time);
     event Closed(uint256 indexed marketID, uint256 _time);
     event Buy(uint256 indexed marketID, uint256 _time);
@@ -21,11 +22,8 @@ contract MarketFactory is Ownable {
     event NewBearToken(address indexed contractAddress, uint256 _time);
     event NewBullToken(address indexed contractAddress, uint256 _time);
 
-    enum Status {Running, Paused, Closed}
-
     struct MarketStruct {
         bool exist;
-        Status status;
         uint256 marketID;
         uint256 baseCurrencyID;
         int256 initialPrice;
@@ -47,20 +45,22 @@ contract MarketFactory is Ownable {
     uint256 public currentMarketID = 1;
 
     AggregatorV3Interface internal priceFeed;
-    BFactory factory;
+    BFactory private factory;
 
     address private bearToken;
     address private bullToken;
 
     //Constants
-    uint256 public constant CONDITIONAL_TOKEN_WEIGHT = 10 * factory.BONE;
-    uint256 public constant COLLATERAL_TOKEN_WEIGHT  = CONDITIONAL_TOKEN_WEIGHT * 2;
+    uint256 public constant CONDITIONAL_TOKEN_WEIGHT = 10.mul(BPool.BONE);
+    uint256 public constant COLLATERAL_TOKEN_WEIGHT  = CONDITIONAL_TOKEN_WEIGHT.mul(2);
 
     constructor(address _factory) public {
-        factory = BFactory(_factory);
-        
-        ConditionalToken bearToken = address(new ConditionalToken("Bear", "Bear"));
-        ConditionalToken bullToken = address(new ConditionalToken("Bull", "Bull"));
+        //TODO: what if to inherit the factory?
+        BFactory factory = BFactory(_factory);
+
+        address implementationMarket = address(new Market());
+        address bearToken = address(new ConditionalToken("Bear", "Bear"));
+        address bullToken = address(new ConditionalToken("Bull", "Bull"));
 
         //Add moreoracles
         //Network: Kovan Aggregator: ETH/USD
@@ -69,49 +69,94 @@ contract MarketFactory is Ownable {
         ] = 0x9326BFA02ADD2366b30bacB125260Af641031331;
     }
 
-    /**
-     * Returns the latest price
-     */
-    function getLatestPrice(AggregatorV3Interface feed)
+    function create
+    (
+        address _collateralToken,
+        uint256 _baseCurrencyID,
+        uint256 _duration,
+        uint256 _approvedBalance
+    )
         public
-        view
-        returns (int256)
     {
-        (
-            uint80 roundID,
-            int256 price,
-            uint256 startedAt,
-            uint256 timeStamp,
-            uint80 answeredInRound
-        ) = feed.latestRoundData();
-        return price;
-    }
+        //TODO: check if _collateralToken is a valid ERC20 contract
+        require(
+            baseCurrencyToChainlinkFeed[_baseCurrencyID] != address(0),
+            "Invalid base currency"
+        );
+        require(
+            _duration >= 600 seconds && _duration < 365 days,
+            "Invalid duration"
+        );
 
-    /**
-     * Returns historical price for a round id.
-     * roundId is NOT incremental. Not all roundIds are valid.
-     * You must know a valid roundId before consuming historical data.
-     *
-     * ROUNDID VALUES:
-     *    InValid:      18446744073709562300
-     *    Valid:        18446744073709562301
-     *
-     * @dev A timestamp with zero value means the round is not complete and should not be used.
-     */
-    function getHistoricalPrice(AggregatorV3Interface feed, uint80 roundId)
-        public
-        view
-        returns (int256)
-    {
-        (
-            uint80 id,
-            int256 price,
-            uint256 startedAt,
-            uint256 timeStamp,
-            uint80 answeredInRound
-        ) = feed.getRoundData(roundId);
-        require(timeStamp > 0, "Round not complete");
-        return price;
+        uint8 _collateralDecimals = IERC20(_collateralToken).decimals();
+
+        //Estamate balance tokens
+        //TODO: think what if _collateralDecimals is small
+        //TODO: test if possible to set BPool.BONE as 10**_collateralDecimals
+        //TODO: maybe should use the safeMath
+        uint256 _initialBalance = _approvedBalance.div(2);
+
+        //Calculate swap fee
+        //TODO: correct the calculation
+        uint256 _swapFee = calcSwapFee(_collateralDecimals);
+
+        //Create a pool of the balancer
+        //TODO: add clone-factory to the factory
+        BPool _pool = factory.newBPool();
+
+        //Contract factory (clone) for two ERC20 tokens
+        ConditionalToken _bearToken = cloneBearToken(_collateralDecimals);
+        ConditionalToken _bullToken = cloneBullToken(_collateralDecimals);
+
+        //Add conditional and collateral tokens to the pool
+        addConditionalToken(_pool, _bearToken, _initialBalance);
+        addConditionalToken(_pool, _bullToken, _initialBalance);
+        addCollateralToken(_pool, IERC20(_collateralToken), _initialBalance);
+
+        //TODO: send _initialBalance to the pool as the freezed money
+        //_collateralToken.transferFrom(msg.sender, address(_pool), _initialBalance);
+
+        //Set the swap fee
+        _pool.setSwapFee(_swapFee);
+
+        //Release the pool and allow public swaps
+        _pool.release();
+
+        //Get chainlink price feed by _baseCurrencyID
+        address _chainlinkPriceFeed =
+            baseCurrencyToChainlinkFeed[_baseCurrencyID];
+
+        int256 _initialPrice =
+            getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
+
+        require(_initialPrice > 0, "Chainlink error");
+
+        //Make the market instead
+        MarketStruct memory marketStruct =
+            MarketStruct({
+                exist: true,
+                status: Status.Running,
+                marketID: currentMarketID,
+                baseCurrencyID: _baseCurrencyID,
+                initialPrice: _initialPrice,
+                finalPrice: 0,
+                created: now,
+                duration: _duration,
+                totalDeposit: 0,
+                totalRedemption: 0,
+                collateralToken: _collateralToken,
+                bearToken: address(_bearToken),
+                bullToken: address(_bullToken),
+                pool: address(_pool)
+            });
+
+        markets[currentMarketID] = marketStruct;
+
+        emit Created(currentMarketID, now);
+
+        //Increment current market ID
+        currentMarketID++;
+        //TODO: return address of the created market
     }
 
     function cloneBearToken(uint8 _decimals) internal returns (ConditionalToken) {
@@ -157,172 +202,54 @@ contract MarketFactory is Ownable {
         _pool.bind(address(token), balance, denorm);
     }
 
-    function create(address _collateralToken, uint256 _baseCurrencyID, uint256 _duration)
-        public
-    {
-        //TODO: check if _collateralToken is a valid ERC20 contract
-        require(
-            baseCurrencyToChainlinkFeed[_baseCurrencyID] != address(0),
-            "Invalid base currency"
-        );
-        require(
-            _duration >= 600 seconds && _duration < 365 days,
-            "Invalid duration"
-        );
-
-        uint8 _collateralDecimals = IERC20(_collateralToken).decimals();
-
-        //Estamate balance tokens
-        //TODO: ask about initial balance
-        //TODO: think what if collaterDecimals is small
-        uint256 _initialBalance = 1000;
-        uint256 _collateralBalance = _initialBalance * _collateralDecimals;
-        uint256 _conditionalBalance = _collateralBalance / 2;
-
-        //Calculate swap fee
-        //TODO: correct the calculation
-        uint256 _swapFee = calcSwapFee(_collateralDecimals);
-
-        //Create a pool of the balancer
-        //TODO: add clone-factory to the factory
-        BPool _pool = factory.newBPool();
-
-        //Contract factory (clone) for two ERC20 tokens
-        ConditionalToken _bearToken = cloneBearToken(_collateralDecimals);
-        ConditionalToken _bullToken = cloneBullToken(_collateralDecimals);
-
-        //Add conditional and collateral tokens to the pool
-        addConditionalToken(_pool, _bearToken, _conditionalBalance);
-        addConditionalToken(_pool, _bullToken, _conditionalBalance);
-        addCollateralToken(_pool, IERC20(_collateralToken), _collateralBalance);
-
-        //Set the swap fee
-        _pool.setSwapFee(_swapFee);
-
-        //Release the pool and allow public swaps
-        _pool.release();
-
-        //Get chainlink price feed by _baseCurrencyID
-        address _chainlinkPriceFeed =
-            baseCurrencyToChainlinkFeed[_baseCurrencyID];
-
-        int256 _initialPrice =
-            getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
-
-        require(_initialPrice > 0, "Chainlink error");
-
-        //Make the market instead
-        MarketStruct memory marketStruct =
-            MarketStruct({
-                exist: true,
-                status: Status.Running,
-                marketID: currentMarketID,
-                baseCurrencyID: _baseCurrencyID,
-                initialPrice: _initialPrice,
-                finalPrice: 0,
-                created: now,
-                duration: _duration,
-                totalDeposit: 0,
-                totalRedemption: 0,
-                collateralToken: _collateralToken,
-                bearToken: address(_bearToken),
-                bullToken: address(_bullToken),
-                pool: address(_pool)
-            });
-
-        markets[currentMarketID] = marketStruct;
-
-        emit Created(currentMarketID, now);
-
-        //Increment current market ID
-        currentMarketID++;
-    }
-
     function calcSwapFee(uint8 _decimals) public returns (uint8) {
         //TODO: correct the calculation
-        return 10 ** _decimals / 1000 * 3; // 0.3%
+        return (10 ** _decimals).div(1000).mul(3); // 0.3%
     }
 
-    function close(uint256 _marketID) public {
-        require(markets[_marketID].exist, "Market doesn't exist");
-        require(
-            markets[_marketID].status != Status.Closed,
-            "Market has already been closed"
-        );
-        require(
-            SafeMath.add(
-                markets[_marketID].created,
-                markets[_marketID].duration
-            ) > now,
-            "Market closing time hasn't yet arrived"
-        );
-
-        //Get chainlink price feed by _baseCurrencyID
-        address _chainlinkPriceFeed =
-            baseCurrencyToChainlinkFeed[markets[_marketID].baseCurrencyID];
-
-        //TODO: query chainlink by valid timestamp
-        int256 _finalPrice =
-            getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
-
-        require(_finalPrice > 0, "Chainlink error");
-        //TODO: require(markets[_marketID].initialPrice != _finalPrice, "Price didn't change");
-
-        markets[_marketID].status = Status.Closed;
-        markets[_marketID].finalPrice = _finalPrice;
-
-        emit Closed(_marketID, now);
+    /**
+     * Returns the latest price
+     */
+    function getLatestPrice(AggregatorV3Interface feed)
+        public
+        view
+        returns (int256)
+    {
+        (
+            uint80 roundID,
+            int256 price,
+            uint256 startedAt,
+            uint256 timeStamp,
+            uint80 answeredInRound
+        ) = feed.latestRoundData();
+        return price;
     }
 
-    //Buy new token pair for collateral token
-    function buy(uint256 _marketID, uint256 _amount) external {
-        require(markets[_marketID].exist, "Market doesn't exist");
-        require(markets[_marketID].status == Status.Running, "Invalid status");
-        require(_amount > 0, "Invalid amount");
-
-        //TODO: deposit collateral in accordance to markeetid collateral. require(token.transferFrom(msg.sender, this, _amount));
-        //TODO: mint both tokens. _mint(msg.sender, supply);
-        //TODO: approve both tokens
-        //TODO: send both tokens to user. require(token.transferFrom(msg.sender, this, _amount));
-
-        //Increase total deposited collateral
-        markets[_marketID].totalDeposit = SafeMath.add(
-            markets[_marketID].totalDeposit,
-            _amount
-        );
-
-        emit Buy(_marketID, now);
-    }
-
-    function redeem(uint256 _marketID, uint256 _amount) external {
-        require(markets[_marketID].exist, "Market doesn't exist");
-        require(markets[_marketID].status == Status.Closed, "Invalid status");
-        require(_amount > 0, "Invalid amount");
-        require(
-            markets[_marketID].totalDeposit >
-                markets[_marketID].totalRedemption,
-            "No collateral left"
-        );
-
-        //Determine winning token address
-        address winningToken;
-
-        if (markets[_marketID].finalPrice > markets[_marketID].initialPrice) {
-            winningToken = markets[_marketID].bearToken;
-        } else {
-            winningToken = markets[_marketID].bullToken;
-        }
-
-        //TODO: deposit winningToken _amount. require(token.transferFrom(msg.sender, this, _amount));
-        //TODO: send collateral to user in accordance to markeetid collateral. 1 token = 1 collateral
-
-        //Increase total redemed collateral
-        markets[_marketID].totalRedemption = SafeMath.add(
-            markets[_marketID].totalRedemption,
-            _amount
-        );
-
-        emit Redeem(_marketID, now);
+    /**
+     * Returns historical price for a round id.
+     * roundId is NOT incremental. Not all roundIds are valid.
+     * You must know a valid roundId before consuming historical data.
+     *
+     * ROUNDID VALUES:
+     *    InValid:      18446744073709562300
+     *    Valid:        18446744073709562301
+     *
+     * @dev A timestamp with zero value means the round is not complete and should not be used.
+     */
+    function getHistoricalPrice(AggregatorV3Interface feed, uint80 roundId)
+        public
+        view
+        returns (int256)
+    {
+        (
+            uint80 id,
+            int256 price,
+            uint256 startedAt,
+            uint256 timeStamp,
+            uint80 answeredInRound
+        ) = feed.getRoundData(roundId);
+        require(timeStamp > 0, "Round not complete");
+        return price;
     }
 
     function setBaseCurrencyToChainlinkFeed(
