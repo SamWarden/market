@@ -13,6 +13,17 @@ contract Market is BPool, Ownable {
 
     Stages stage = Stages.Created;
 
+    uint256 baseCurrencyID;
+    int256 initialPrice;
+    int256 finalPrice;
+    uint256 created;
+    uint256 duration;
+    uint256 totalDeposit;
+    uint256 totalRedemption;
+    address collateralToken;
+    address bearToken;
+    address bullToken;
+
     modifier atStage(Stages _stage) {
         require(stage == _stage, "Function called in wrong stage");
         _;
@@ -21,6 +32,16 @@ contract Market is BPool, Ownable {
     constructor() public {}
 
     function cloneConstructor () public onlyOwner atStage(Stages.Created) {
+        baseCurrencyID = _baseCurrencyID
+        initialPrice = _initialPrice
+        duration = _duration
+        collateralToken = address(_collateralToken)
+        bearToken = address(_bearToken)
+        bullToken = address(_bullToken)
+        finalPrice = 0
+        created = now
+        totalDeposit = 0
+        totalRedemption = 0
 
         stage = Stages.Open;
     }
