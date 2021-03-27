@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
-import "./balancer/BPool.sol";
 import "./balancer/BFactory.sol";
 import "./ConditionalToken.sol";
 import "./Chainlink.sol";
@@ -23,28 +22,11 @@ contract MarketFactory is Chainlink, Ownable {
     event NewBearToken(address indexed contractAddress, uint256 _time);
     event NewBullToken(address indexed contractAddress, uint256 _time);
 
-    struct MarketStruct {
-        bool exist;
-        uint256 marketID;
-        uint256 baseCurrencyID;
-        int256 initialPrice;
-        int256 finalPrice;
-        uint256 created;
-        uint256 duration;
-        uint256 totalDeposit;
-        uint256 totalRedemption;
-        address collateralToken;
-        address bearToken;
-        address bullToken;
-        BPool pool;
-    }
-
+    //TODO: add list of markets
     mapping(address => bool) public markets;
+    mapping(string => address) public colleteralCurrencies;
 
     //Variables
-    uint256 public currentMarketID = 1;
-
-    AggregatorV3Interface internal priceFeed;
     BFactory private factory;
 
     address private baseMarket;
@@ -52,49 +34,55 @@ contract MarketFactory is Chainlink, Ownable {
     address private baseBullToken;
 
     //Constants
-    uint256 public constant CONDITIONAL_TOKEN_WEIGHT = 10.mul(BPool.BONE);
+    uint256 public constant CONDITIONAL_TOKEN_WEIGHT = (10).mul(BPool.BONE);
     uint256 public constant COLLATERAL_TOKEN_WEIGHT  = CONDITIONAL_TOKEN_WEIGHT.mul(2);
 
     constructor(address _factory) public {
-        //TODO: what if to inherit the factory?
-        BFactory factory = BFactory(_factory);
-
         address baseMarket = address(new Market());
         address baseBearToken = address(new ConditionalToken("Bear", "Bear"));
         address baseBullToken = address(new ConditionalToken("Bull", "Bull"));
 
-        //Add moreoracles
+        //TODO: Add moreoracles
         //Network: Kovan Aggregator: ETH/USD
-        baseCurrencyToChainlinkFeed[
-            uint256(1)
+        feeds[
+            "ETH/USD"
         ] = 0x9326BFA02ADD2366b30bacB125260Af641031331;
+
+        colleteralCurrencies["DAI"] = 0x0;
+
+        //TODO: what if to inherit the factory?
+        // BFactory factory = BFactory(_factory);
     }
 
     function create
     (
-        address _collateralToken,
-        uint256 _baseCurrencyID,
+        address _collateralCurrency,
+        address _feedCurrencyPair,
         uint256 _duration,
         uint256 _approvedBalance
     )
-        public
+        public retruns (address)
     {
-        //TODO: check if _collateralToken is a valid ERC20 contract
         require(
-            baseCurrencyToChainlinkFeed[_baseCurrencyID] != address(0),
-            "Invalid base currency"
+            colleteralCurrencies[_collateralCurrency] != address(0),
+            "Invalid colleteral currency"
+        );
+        require(
+            feeds[_feedCurrencyPair] != address(0),
+            "Invalid currency pair"
         );
         require(
             _duration >= 600 seconds && _duration < 365 days,
             "Invalid duration"
         );
 
-        uint8 _collateralDecimals = IERC20(_collateralToken).decimals();
+        //TODO: check if _collateralToken is a valid ERC20 contract
+        IERC20 _collateralToken = IERC20(colleteralCurrencies[_collateralCurrency]);
+        uint8 _collateralDecimals = _collateralToken.decimals();
 
         //Estamate balance tokens
         //TODO: think what if _collateralDecimals is small
         //TODO: test if possible to set BPool.BONE as 10**_collateralDecimals
-        //TODO: maybe should use the safeMath
         uint256 _initialBalance = _approvedBalance.div(2);
 
         //Calculate swap fee
@@ -102,10 +90,9 @@ contract MarketFactory is Chainlink, Ownable {
         uint256 _swapFee = calcSwapFee(_collateralDecimals);
 
         //Create a pool of the balancer
-        //TODO: add clone-factory to the factory
-        // BPool _pool = factory.newBPool();
         //TODO: use the market instead of the pool
-        // Market _matket = cloneMarket(_bearToken, _bullToken);
+        address _marketAddress = cloneMarket(_bearToken, _bullToken);
+        Market _market = Market(_marketAddress)
 
         //Contract factory (clone) for two ERC20 tokens
         ConditionalToken _bearToken = cloneBearToken(_collateralDecimals);
@@ -113,54 +100,39 @@ contract MarketFactory is Chainlink, Ownable {
 
 
         //Add conditional and collateral tokens to the pool
-        addConditionalToken(_pool, _bearToken, _initialBalance);
-        addConditionalToken(_pool, _bullToken, _initialBalance);
-        addCollateralToken(_pool, IERC20(_collateralToken), _initialBalance);
+        addConditionalToken(_market, _bearToken, _initialBalance);
+        addConditionalToken(_market, _bullToken, _initialBalance);
+        addCollateralToken(_market, _collateralToken, _initialBalance);
 
         //TODO: send _initialBalance to the pool as the freezed money
         //_collateralToken.transferFrom(msg.sender, address(_pool), _initialBalance);
 
         //Set the swap fee
-        _pool.setSwapFee(_swapFee);
+        _market.setSwapFee(_swapFee);
 
         //Release the pool and allow public swaps
-        _pool.release();
+        _market.release();
 
-        //Get chainlink price feed by _baseCurrencyID
+        //Get chainlink price feed by _feedCurrencyPair
         address _chainlinkPriceFeed =
-            baseCurrencyToChainlinkFeed[_baseCurrencyID];
+            feeds[_feedCurrencyPair];
 
         int256 _initialPrice =
             getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
 
         require(_initialPrice > 0, "Chainlink error");
 
-        //Make the market instead
-        MarketStruct memory marketStruct =
-            MarketStruct({
-                exist: true,
-                status: Status.Running,
-                marketID: currentMarketID,
-                baseCurrencyID: _baseCurrencyID,
-                initialPrice: _initialPrice,
-                finalPrice: 0,
-                created: now,
-                duration: _duration,
-                totalDeposit: 0,
-                totalRedemption: 0,
-                collateralToken: _collateralToken,
-                bearToken: address(_bearToken),
-                bullToken: address(_bullToken),
-                pool: address(_pool)
-            });
+        marktes[_marketAddress] = true;
+        emit Created(_marketAddress, now);
 
-        markets[currentMarketID] = true;
+        return _marketAddress;
+    }
 
-        emit Created(currentMarketID, now);
-
-        //Increment current market ID
-        currentMarketID++;
-        //TODO: return address of the created market
+    function cloneMarket(uint8 _decimals) internal returns (address) {
+        address _market = Clones.clone(baseMarket);
+        emit NewMarket(_market, now);
+        Market(_market).cloneConstructor(_decimals)
+        return _market;
     }
 
     function cloneBearToken(uint8 _decimals) internal returns (ConditionalToken) {
@@ -177,7 +149,7 @@ contract MarketFactory is Chainlink, Ownable {
         return ConditionalToken(_bullToken);
     }
 
-    function addConditionalToken(BPool _pool, ConditionalToken _conditionalToken, uint256 _conditionalBalance)
+    function addConditionalToken(Market _market, ConditionalToken _conditionalToken, uint256 _conditionalBalance)
         internal
     {
         //Mint bear and bull tokens
@@ -186,7 +158,7 @@ contract MarketFactory is Chainlink, Ownable {
         addToken(_pool, _conditionalToken, _conditionalBalance, CONDITIONAL_TOKEN_WEIGHT);
     }
 
-    function addCollateralToken(BPool _pool, IERC20 _collateralToken, uint256 _collateralBalance)
+    function addCollateralToken(Market _market, IERC20 _collateralToken, uint256 _collateralBalance)
         internal
     {
         //Pull collateral tokens from sender
@@ -196,14 +168,14 @@ contract MarketFactory is Chainlink, Ownable {
         addToken(_pool, _collateralToken, _collateralBalance, COLLATERAL_TOKEN_WEIGHT);
     }
 
-    function addToken(BPool _pool, IERC20 token, uint256 balance, uint256 denorm)
+    function addToken(Market _market, IERC20 token, uint256 balance, uint256 denorm)
         internal
     {
         //Approve pool
-        token.approve(address(_pool), balance);
+        token.approve(address(_market), balance);
 
         //Add token to the pool
-        _pool.bind(address(token), balance, denorm);
+        _market.bind(address(token), balance, denorm);
     }
 
     function calcSwapFee(uint8 _decimals) public returns (uint8) {
