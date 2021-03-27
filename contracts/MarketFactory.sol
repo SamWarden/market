@@ -9,8 +9,9 @@ import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "./balancer/BPool.sol";
 import "./balancer/BFactory.sol";
 import "./ConditionalToken.sol";
+import "./Chainlink.sol";
 
-contract MarketFactory is Ownable {
+contract MarketFactory is Chainlink, Ownable {
     using SafeMath for uint256, uint8;
 
     //TODO: add more info to events
@@ -38,8 +39,7 @@ contract MarketFactory is Ownable {
         BPool pool;
     }
 
-    mapping(uint256 => MarketStruct) public markets;
-    mapping(uint256 => address) public baseCurrencyToChainlinkFeed;
+    mapping(address => bool) public markets;
 
     //Variables
     uint256 public currentMarketID = 1;
@@ -47,6 +47,7 @@ contract MarketFactory is Ownable {
     AggregatorV3Interface internal priceFeed;
     BFactory private factory;
 
+    address private baseMarket;
     address private baseBearToken;
     address private baseBullToken;
 
@@ -102,11 +103,14 @@ contract MarketFactory is Ownable {
 
         //Create a pool of the balancer
         //TODO: add clone-factory to the factory
-        BPool _pool = factory.newBPool();
+        // BPool _pool = factory.newBPool();
+        //TODO: use the market instead of the pool
+        // Market _matket = cloneMarket(_bearToken, _bullToken);
 
         //Contract factory (clone) for two ERC20 tokens
         ConditionalToken _bearToken = cloneBearToken(_collateralDecimals);
         ConditionalToken _bullToken = cloneBullToken(_collateralDecimals);
+
 
         //Add conditional and collateral tokens to the pool
         addConditionalToken(_pool, _bearToken, _initialBalance);
@@ -150,7 +154,7 @@ contract MarketFactory is Ownable {
                 pool: address(_pool)
             });
 
-        markets[currentMarketID] = marketStruct;
+        markets[currentMarketID] = true;
 
         emit Created(currentMarketID, now);
 
@@ -207,59 +211,7 @@ contract MarketFactory is Ownable {
         return (10 ** _decimals).div(1000).mul(3); // 0.3%
     }
 
-    /**
-     * Returns the latest price
-     */
-    function getLatestPrice(AggregatorV3Interface feed)
-        public
-        view
-        returns (int256)
-    {
-        (
-            uint80 roundID,
-            int256 price,
-            uint256 startedAt,
-            uint256 timeStamp,
-            uint80 answeredInRound
-        ) = feed.latestRoundData();
-        return price;
-    }
-
-    /**
-     * Returns historical price for a round id.
-     * roundId is NOT incremental. Not all roundIds are valid.
-     * You must know a valid roundId before consuming historical data.
-     *
-     * ROUNDID VALUES:
-     *    InValid:      18446744073709562300
-     *    Valid:        18446744073709562301
-     *
-     * @dev A timestamp with zero value means the round is not complete and should not be used.
-     */
-    function getHistoricalPrice(AggregatorV3Interface feed, uint80 roundId)
-        public
-        view
-        returns (int256)
-    {
-        (
-            uint80 id,
-            int256 price,
-            uint256 startedAt,
-            uint256 timeStamp,
-            uint80 answeredInRound
-        ) = feed.getRoundData(roundId);
-        require(timeStamp > 0, "Round not complete");
-        return price;
-    }
-
-    function setBaseCurrencyToChainlinkFeed(
-        uint256 _baseCurrencyID,
-        address _chainlinkFeed
-    ) public onlyOwner {
-        baseCurrencyToChainlinkFeed[_baseCurrencyID] = _chainlinkFeed;
-    }
-
-    function viewMarketExist(uint256 _marketID) public view returns (bool) {
-        return markets[_marketID].exist;
+    function isMarket(address _market) public view returns (bool) {
+        return markets[_market];
     }
 }
