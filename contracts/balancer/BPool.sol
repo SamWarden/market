@@ -369,6 +369,10 @@ contract BPool is BBronze, BToken, BMath {
         _logs_
         _lock_
     {
+        //Increase the totalSupply
+        // Bt += (AO / total) * Bt
+        // mint(AO)
+        // +total => -result, +Bt,AO => +result
         require(_finalized, "ERR_NOT_FINALIZED");
 
         uint poolTotal = totalSupply();
@@ -394,6 +398,8 @@ contract BPool is BBronze, BToken, BMath {
         _logs_
         _lock_
     {
+        // Bt -= ((AI - (AI*FEE)) / total) * Bt
+        // burn(AI - (AI*FEE))
         require(_finalized, "ERR_NOT_FINALIZED");
 
         uint poolTotal = totalSupply();
@@ -431,7 +437,8 @@ contract BPool is BBronze, BToken, BMath {
         _lock_
         returns (uint tokenAmountOut, uint spotPriceAfter)
     {
-
+        // calcOutGivenIn(Bi, Wi, Bo, Wo, AI, fee) = AO
+        // Bi += AI; Bo -= AO
         require(_records[tokenIn].bound, "ERR_NOT_BOUND");
         require(_records[tokenOut].bound, "ERR_NOT_BOUND");
         require(_publicSwap, "ERR_SWAP_NOT_PUBLIC");
@@ -494,6 +501,8 @@ contract BPool is BBronze, BToken, BMath {
         _lock_ 
         returns (uint tokenAmountIn, uint spotPriceAfter)
     {
+        // calcInGivenOut(Bi, Wi, Bo, Wo, AO, fee) = AI
+        // Bi += AI; Bo -= AO
         require(_records[tokenIn].bound, "ERR_NOT_BOUND");
         require(_records[tokenOut].bound, "ERR_NOT_BOUND");
         require(_publicSwap, "ERR_SWAP_NOT_PUBLIC");
@@ -552,6 +561,8 @@ contract BPool is BBronze, BToken, BMath {
         returns (uint poolAmountOut)
 
     {        
+        //calcPoolOutGivenSingleIn(Bi, Wi, TS, TW, AI, fee) = AO
+        // Bi += AI; mint(AO)
         require(_finalized, "ERR_NOT_FINALIZED");
         require(_records[tokenIn].bound, "ERR_NOT_BOUND");
         require(tokenAmountIn <= bmul(_records[tokenIn].balance, MAX_IN_RATIO), "ERR_MAX_IN_RATIO");
@@ -586,6 +597,8 @@ contract BPool is BBronze, BToken, BMath {
         _lock_
         returns (uint tokenAmountIn)
     {
+        //calcSingleInGivenPoolOut(Bi, Wi, TS, TW, AO, fee) = AI
+        // Bi += AI; mint(AO)
         require(_finalized, "ERR_NOT_FINALIZED");
         require(_records[tokenIn].bound, "ERR_NOT_BOUND");
 
@@ -622,6 +635,8 @@ contract BPool is BBronze, BToken, BMath {
         _lock_
         returns (uint tokenAmountOut)
     {
+        //calcSingleOutGivenPoolIn(Bo, Wo, TS, TW, AI, fee) = AO
+        //birn(AI); Bo -= AO
         require(_finalized, "ERR_NOT_FINALIZED");
         require(_records[tokenOut].bound, "ERR_NOT_BOUND");
 
@@ -660,6 +675,8 @@ contract BPool is BBronze, BToken, BMath {
         _lock_
         returns (uint poolAmountIn)
     {
+        //calcPoolInGivenSingleOut(Bo, Wo, TS, TW, AO, fee) = AI
+        //birn(AI); Bo -= AO
         require(_finalized, "ERR_NOT_FINALIZED");
         require(_records[tokenOut].bound, "ERR_NOT_BOUND");
         require(tokenAmountOut <= bmul(_records[tokenOut].balance, MAX_OUT_RATIO), "ERR_MAX_OUT_RATIO");
