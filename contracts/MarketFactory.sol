@@ -81,16 +81,13 @@ contract MarketFactory is Ownable {
         uint8 _collateralDecimals = _collateralToken.decimals();
 
         //Estamate balance tokens
-        //TODO: think what if _collateralDecimals is small
-        //TODO: test if possible to set BPool.BONE as 10**_collateralDecimals
         uint256 _initialBalance = _approvedBalance.div(2);
 
         //Calculate swap fee
+        //TODO: think what if _collateralDecimals is small
+        //TODO: test if possible to set BPool.BONE as 10**_collateralDecimals
         //TODO: correct the calculation
         uint256 _swapFee = calcSwapFee(_collateralDecimals);
-
-        //Get chainlink price feed by _feedCurrencyPair
-        address _chainlinkPriceFeed = feeds[_feedCurrencyPair];
 
         //Contract factory (clone) for two ERC20 tokens
         ConditionalToken _bearToken = cloneBearToken(_collateralDecimals);
@@ -98,28 +95,30 @@ contract MarketFactory is Ownable {
 
         //Create a pool of the balancer
         //TODO: use the market instead of the pool
-        address _marketAddress = cloneMarket(_bearToken, _bullToken);
+        address _marketAddress = cloneMarket(
+            _collateralToken,
+            _bearToken,
+            _bullToken,
+            _duration,
+            _collateralCurrency,
+            _feedCurrencyPair
+        );
         Market _market = Market(_marketAddress)
+
+        //Set the swap fee
+        _market.setSwapFee(_swapFee);
 
         //Add conditional and collateral tokens to the pool with liqudity
         addConditionalToken(_marketAddress, _bearToken, _initialBalance);
         addConditionalToken(_marketAddress, _bullToken, _initialBalance);
         addCollateralToken(_marketAddress, _collateralToken, _initialBalance);
 
-        //mint the LP token and send it to msg.sender
+        //Mint the conditional tokens
         _market.buy(_initialBalance)
 
         //Send bought conditional token to the sender
         _bullToken.transfer(msg.sender, _initialBalance);
         _bearToken.transfer(msg.sender, _initialBalance);
-
-        // _market.joinswapExternAmountIn(address(_collateralToken), _initialBalance, 0);
-
-        //TODO: send _initialBalance to the pool as the freezed money
-        //_collateralToken.transferFrom(msg.sender, address(_pool), _initialBalance);
-
-        //Set the swap fee
-        _market.setSwapFee(_swapFee);
 
         //Release the pool and allow public swaps
         _market.release();
@@ -139,14 +138,31 @@ contract MarketFactory is Ownable {
         return markets[_market];
     }
 
-    function cloneMarket(uint8 _decimals) internal returns (address) {
-        //TODO: get the collateralCurrency and to get _chainlinkPriceFeed
-        //Get chainlink price feed by _collateralCurrency
-        // address _chainlinkPriceFeed =
-        //     baseCurrencyToChainlinkFeed[collateralCurrency];
+    function cloneMarket(
+        IERC20 _collateralToken,
+        ConditionalToken _bearToken,
+        ConditionalToken _bullToken,
+        uint256 _duration,
+        string _collateralCurrency,
+        string _feedCurrencyPair
+    )
+        internal
+        returns (address)
+    {
+        //Get chainlink price feed by _feedCurrencyPair
+        address _chainlinkPriceFeed = feeds[_feedCurrencyPair];
+
         address _market = Clones.clone(baseMarket);
         emit NewMarket(_market, now);
-        Market(_market).cloneConstructor(_decimals)
+        Market(_market).cloneConstructor(
+            _collateralToken,
+            _bearToken,
+            _bullToken,
+            _duration,
+            _collateralCurrency,
+            _feedCurrencyPair,
+            _chainlinkPriceFeed
+        );
         return _market;
     }
 
