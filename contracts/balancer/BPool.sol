@@ -13,10 +13,11 @@
 
 pragma solidity ^0.6.0;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "./BToken.sol";
 import "./BMath.sol";
 
-contract BPool is BBronze, BToken, BMath {
+contract BPool is BBronze, BToken, BMath, Ownable {
 
     struct Record {
         bool bound;   // is token bound to pool
@@ -71,7 +72,6 @@ contract BPool is BBronze, BToken, BMath {
     bool private _mutex;
 
     address private _factory;    // BFactory address to push token exitFee to
-    address private _controller; // has CONTROL role
     bool private _publicSwap; // true if PUBLIC can call SWAP functions
 
     // `setSwapFee` and `finalize` require CONTROL
@@ -84,7 +84,6 @@ contract BPool is BBronze, BToken, BMath {
     uint private _totalWeight;
 
     constructor() public {
-        _controller = msg.sender;
         _factory = msg.sender;
         _swapFee = MIN_FEE;
         _publicSwap = false;
@@ -182,42 +181,25 @@ contract BPool is BBronze, BToken, BMath {
         return _swapFee;
     }
 
-    function getController()
-        external view
-        _viewlock_
-        returns (address)
-    {
-        return _controller;
-    }
-
     function setSwapFee(uint swapFee)
         external
         _logs_
         _lock_
+        onlyOwner
     { 
         require(!_finalized, "ERR_IS_FINALIZED");
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
         require(swapFee >= MIN_FEE, "ERR_MIN_FEE");
         require(swapFee <= MAX_FEE, "ERR_MAX_FEE");
         _swapFee = swapFee;
-    }
-
-    function setController(address manager)
-        external
-        _logs_
-        _lock_
-    {
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
-        _controller = manager;
     }
 
     function setPublicSwap(bool public_)
         external
         _logs_
         _lock_
+        onlyOwner
     {
         require(!_finalized, "ERR_IS_FINALIZED");
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
         _publicSwap = public_;
     }
 
@@ -225,8 +207,8 @@ contract BPool is BBronze, BToken, BMath {
         external
         _logs_
         _lock_
+        onlyOwner
     {
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
         require(!_finalized, "ERR_IS_FINALIZED");
         require(_tokens.length >= MIN_BOUND_TOKENS, "ERR_MIN_TOKENS");
 
@@ -242,8 +224,8 @@ contract BPool is BBronze, BToken, BMath {
         external
         _logs_
         // _lock_  Bind does not lock because it jumps to `rebind`, which does
+        onlyOwner
     {
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
         require(!_records[token].bound, "ERR_IS_BOUND");
         require(!_finalized, "ERR_IS_FINALIZED");
 
@@ -263,9 +245,8 @@ contract BPool is BBronze, BToken, BMath {
         public
         _logs_
         _lock_
+        onlyOwner
     {
-
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
         require(_records[token].bound, "ERR_NOT_BOUND");
         require(!_finalized, "ERR_IS_FINALIZED");
 
@@ -301,9 +282,8 @@ contract BPool is BBronze, BToken, BMath {
         external
         _logs_
         _lock_
+        onlyOwner
     {
-
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
         require(_records[token].bound, "ERR_NOT_BOUND");
         require(!_finalized, "ERR_IS_FINALIZED");
 
@@ -331,14 +311,15 @@ contract BPool is BBronze, BToken, BMath {
     }
 
     // Absorb any tokens that have been sent to this contract into the pool
-    function gulp(address token)
-        external
-        _logs_
-        _lock_
-    {
-        require(_records[token].bound, "ERR_NOT_BOUND");
-        _records[token].balance = IERC20(token).balanceOf(address(this));
-    }
+    // function gulp(address token)
+    //     external
+    //     _logs_
+    //     _lock_
+    //     onlyOwner
+    // {
+    //     require(_records[token].bound, "ERR_NOT_BOUND");
+    //     _records[token].balance = IERC20(token).balanceOf(address(this));
+    // }
 
     function getSpotPrice(address tokenIn, address tokenOut)
         external view
