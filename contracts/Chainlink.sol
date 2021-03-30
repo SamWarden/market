@@ -32,6 +32,31 @@ contract MarketFactory is Ownable {
     /**
      * Returns the latest price
      */
+    function getHistoricalPriceByTimestamp(AggregatorV3Interface _feed, uint256 _timestamp)
+        public
+        view
+        returns (int256)
+    {
+        (
+            uint80 _roundID,
+            int256 _price,
+            uint256 _startedAt,
+            uint256 _roundTimeStamp,
+            uint80 _answeredInRound
+        ) = _feed.latestRoundData();
+        //Search untill startedAt > _timestamp
+        while (_roundTimeStamp == 0 || _startedAt > _timestamp) {
+            roundId--;
+            (
+                _roundID,
+                _price,
+                _startedAt,
+                _roundTimeStamp,
+                _answeredInRound
+            ) = _feed.getRoundData(_roundId);
+        }
+        return _price
+    }
     function getLatestPrice(AggregatorV3Interface _feed)
         public
         view
@@ -64,7 +89,7 @@ contract MarketFactory is Ownable {
         returns (int256)
     {
         (
-            uint80 _id,
+            uint80 _roundID,
             int256 _price,
             uint256 _startedAt,
             uint256 _timeStamp,
