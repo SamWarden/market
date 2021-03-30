@@ -47,6 +47,11 @@ contract Market is Chainlink, BPool {
         onlyOwner
         atStage(Stages.Created)
     {
+        int256 _initialPrice =
+            getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
+
+        require(_initialPrice > 0, "Chainlink error");
+
         collateralCurrency = _collateralCurrency;
         initialPrice = _initialPrice;
         duration = _duration;
@@ -107,9 +112,10 @@ contract Market is Chainlink, BPool {
     {
         require(_amount > 0, "Invalid amount");
 
-
+        //Get collateral token from sender
         collateralToken.transferFrom(msg.sender, address(this), _amount);
 
+        //Mint conditional tokens to sender
         bullToken.mint(msg.sender, _amount);
         bearToken.mint(msg.sender, _amount);
 
@@ -126,12 +132,13 @@ contract Market is Chainlink, BPool {
         atStage(Stages.Closed)
     {
         require(_amount > 0, "Invalid amount");
-        require(totalDeposit > totalRedemption,
-            "No collateral left"
-        );
+        require(totalDeposit >= totalRedemption.add(_amount), "No collateral left");
 
-        //TODO: deposit winningToken _amount. require(token.transferFrom(msg.sender, this, _amount));
-        //TODO: send collateral to user in accordance to markeetid collateral. 1 token = 1 collateral
+        //Get win tokens from sender
+        ConditionalToken(winningToken).transferFrom(msg.sender, address(this), _amount);
+
+        //Send collateral tokens to sender
+        collateralToken.transfer(msg.sender, _amount);
 
         //Increase total redemed collateral
         totalRedemption = totalRedemption.add(_amount);
