@@ -3,126 +3,140 @@ pragma solidity ^0.6.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "./balancer/BPool.sol";
 import "./ConditionalToken.sol";
 
-contract Market is BPool, Ownable {
-    enum Stages {Created, Open, Closed}
+contract Market is BPool {
+    using SafeMath for uint256, uint8;
 
+    enum Stages {Created, Open, Closed}
+    enum Results {Unknown, Bull, Bear}
+
+    Results result = Results.Unknown;
     Stages stage = Stages.Created;
 
-    uint256 baseCurrencyID;
+    address winningToken;
+    uint256 collateralCurrency;
+    address chainlinkPriceFeed;
     int256 initialPrice;
     int256 finalPrice;
     uint256 created;
     uint256 duration;
+
     uint256 totalDeposit;
     uint256 totalRedemption;
-    address collateralToken;
-    address bearToken;
-    address bullToken;
+
+    IERC20 collateralToken;
+    ConditionalToken bearToken;
+    ConditionalToken bullToken;
 
     modifier atStage(Stages _stage) {
         require(stage == _stage, "Function called in wrong stage");
         _;
     }
 
-    constructor() public {}
+    // constructor() public {}
 
-    function cloneConstructor () public onlyOwner atStage(Stages.Created) {
-        baseCurrencyID = _baseCurrencyID
-        initialPrice = _initialPrice
-        duration = _duration
-        collateralToken = address(_collateralToken)
-        bearToken = address(_bearToken)
-        bullToken = address(_bullToken)
-        finalPrice = 0
-        created = now
-        totalDeposit = 0
-        totalRedemption = 0
+    function cloneConstructor()
+        external
+        _logs_
+        //_lock_
+        onlyOwner
+        atStage(Stages.Created)
+    {
+        collateralCurrency = _collateralCurrency;
+        initialPrice = _initialPrice;
+        duration = _duration;
+        collateralToken = _collateralToken;
+        bearToken = _bearToken;
+        bullToken = _bullToken;
+        finalPrice = 0;
+        created = now;
+        totalRedemption = 0;
 
         stage = Stages.Open;
     }
 
-    function getStage() public view returns (Stages) {
+    function getStage()
+        public view
+        _viewlock_
+        returns (Stages)
+    {
         return stage;
     }
 
-    function close(uint256 _marketID) public atStage(Stages.Open) {
+    function close()
+        public
+        _logs_
+        _lock_
+        atStage(Stages.Open)
+    {
         require(
-            SafeMath.add(
-                markets[_marketID].created,
-                markets[_marketID].duration
-            ) > now,
+            created.add(duration) < now,
             "Market closing time hasn't yet arrived"
         );
 
-        //Get chainlink price feed by _baseCurrencyID
-        address _chainlinkPriceFeed =
-            baseCurrencyToChainlinkFeed[markets[_marketID].baseCurrencyID];
+        //Get chainlink price feed by _collateralCurrency
+        // address _chainlinkPriceFeed =
+        //     baseCurrencyToChainlinkFeed[collateralCurrency];
 
         //TODO: query chainlink by valid timestamp
-        int256 _finalPrice =
-            getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
+        finalPrice = getLatestPrice(AggregatorV3Interface(chainlinkPriceFeed));
 
-        require(_finalPrice > 0, "Chainlink error");
-        //TODO: require(markets[_marketID].initialPrice != _finalPrice, "Price didn't change");
+        require(finalPrice > 0, "Chainlink error");
+        //TODO: require(initialPrice != _finalPrice, "Price didn't change");
 
-        markets[_marketID].status = Status.Closed;
-        markets[_marketID].finalPrice = _finalPrice;
+        stage = Stages.Closed;
 
-        emit Closed(_marketID, now);
+        if (finalPrice > initialPrice) {
+            winningToken = address(bullToken);
+            result = Results.Bull;
+        } else {
+            winningToken = address(bearToken);
+            result = Results.Bear;
+        }
+
+        emit Closed(finalPrice, now);
     }
 
     //Buy new token pair for collateral token
-    function buy(uint256 _marketID, uint256 _amount) external atStage(Stages.Open) {
-        require(markets[_marketID].exist, "Market doesn't exist");
-        require(markets[_marketID].status == Status.Running, "Invalid status");
+    function buy(uint256 _amount)
+        external
+        _logs_
+        _lock_
+        atStage(Stages.Open)
+    {
         require(_amount > 0, "Invalid amount");
 
-        //TODO: deposit collateral in accordance to markeetid collateral. require(token.transferFrom(msg.sender, this, _amount));
-        //TODO: mint both tokens. _mint(msg.sender, supply);
-        //TODO: approve both tokens
-        //TODO: send both tokens to user. require(token.transferFrom(msg.sender, this, _amount));
+
+        collateralToken.transferFrom(msg.sender, address(this), _amount);
+
+        bullToken.mint(msg.sender, _amount);
+        bearToken.mint(msg.sender, _amount);
 
         //Increase total deposited collateral
-        markets[_marketID].totalDeposit = SafeMath.add(
-            markets[_marketID].totalDeposit,
-            _amount
-        );
+        totalDeposit = totalDeposit.add(_amount);
 
-        emit Buy(_marketID, now);
+        emit Buy(msg.sender, _amount, now);
     }
 
-    function redeem(uint256 _marketID, uint256 _amount) external atStage(Stages.Open) {
-        require(markets[_marketID].exist, "Market doesn't exist");
-        require(markets[_marketID].status == Status.Closed, "Invalid status");
+    function redeem(uint256 _amount)
+        external
+        _logs_
+        _lock_
+        atStage(Stages.Closed)
+    {
         require(_amount > 0, "Invalid amount");
-        require(
-            markets[_marketID].totalDeposit >
-                markets[_marketID].totalRedemption,
+        require(totalDeposit > totalRedemption,
             "No collateral left"
         );
-
-        //Determine winning token address
-        address winningToken;
-
-        if (markets[_marketID].finalPrice > markets[_marketID].initialPrice) {
-            winningToken = markets[_marketID].bearToken;
-        } else {
-            winningToken = markets[_marketID].bullToken;
-        }
 
         //TODO: deposit winningToken _amount. require(token.transferFrom(msg.sender, this, _amount));
         //TODO: send collateral to user in accordance to markeetid collateral. 1 token = 1 collateral
 
         //Increase total redemed collateral
-        markets[_marketID].totalRedemption = SafeMath.add(
-            markets[_marketID].totalRedemption,
-            _amount
-        );
+        totalRedemption = totalRedemption.add(_amount);
 
         emit Redeem(_marketID, now);
     }
