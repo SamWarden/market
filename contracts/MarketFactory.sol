@@ -39,6 +39,7 @@ contract MarketFactory is Chainlink, Ownable {
 
     constructor(address _factory) public {
         address baseMarket = address(new Market());
+        //Merge two tokens to baseConditionalToken
         address baseBearToken = address(new ConditionalToken("Bear", "Bear"));
         address baseBullToken = address(new ConditionalToken("Bull", "Bull"));
 
@@ -54,8 +55,7 @@ contract MarketFactory is Chainlink, Ownable {
         // BFactory factory = BFactory(_factory);
     }
 
-    function create
-    (
+    function create(
         address _collateralCurrency,
         address _feedCurrencyPair,
         uint256 _duration,
@@ -104,6 +104,10 @@ contract MarketFactory is Chainlink, Ownable {
         addConditionalToken(_market, _bullToken, _initialBalance);
         addCollateralToken(_market, _collateralToken, _initialBalance);
 
+        //mint the LP token and send it to msg.sender
+        // _market.joinswapExternAmountIn(address(_collateralToken), _initialBalance, 0);
+        // _market.transfer(msg.sender, _initialBalance);
+
         //TODO: send _initialBalance to the pool as the freezed money
         //_collateralToken.transferFrom(msg.sender, address(_pool), _initialBalance);
 
@@ -126,6 +130,15 @@ contract MarketFactory is Chainlink, Ownable {
         emit Created(_marketAddress, now);
 
         return _marketAddress;
+    }
+
+    function calcSwapFee(uint8 _decimals) public view returns (uint8) {
+        //TODO: make SafeMath.pow here
+        return (10 ** _decimals).div(1000).mul(3); // 0.3%
+    }
+
+    function isMarket(address _market) public view returns (bool) {
+        return markets[_market];
     }
 
     function cloneMarket(uint8 _decimals) internal returns (address) {
@@ -155,6 +168,9 @@ contract MarketFactory is Chainlink, Ownable {
         //Mint bear and bull tokens
         _conditionalToken.mint(address(this), _conditionalBalance);
 
+        //To allow the market to mint a conditional token
+        _conditionalToken.transferOwnership(address(_market));
+
         addToken(_pool, _conditionalToken, _conditionalBalance, CONDITIONAL_TOKEN_WEIGHT);
     }
 
@@ -176,14 +192,5 @@ contract MarketFactory is Chainlink, Ownable {
 
         //Add token to the pool
         _market.bind(address(token), balance, denorm);
-    }
-
-    function calcSwapFee(uint8 _decimals) public returns (uint8) {
-        //TODO: correct the calculation
-        return (10 ** _decimals).div(1000).mul(3); // 0.3%
-    }
-
-    function isMarket(address _market) public view returns (bool) {
-        return markets[_market];
     }
 }
