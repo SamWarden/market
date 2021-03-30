@@ -10,7 +10,7 @@ import "./balancer/BFactory.sol";
 import "./ConditionalToken.sol";
 import "./Chainlink.sol";
 
-contract MarketFactory is Chainlink, Ownable {
+contract MarketFactory is Ownable {
     using SafeMath for uint256, uint8;
 
     //TODO: add more info to events
@@ -142,6 +142,10 @@ contract MarketFactory is Chainlink, Ownable {
     }
 
     function cloneMarket(uint8 _decimals) internal returns (address) {
+        //TODO: get the collateralCurrency and to get _chainlinkPriceFeed
+        //Get chainlink price feed by _collateralCurrency
+        // address _chainlinkPriceFeed =
+        //     baseCurrencyToChainlinkFeed[collateralCurrency];
         address _market = Clones.clone(baseMarket);
         emit NewMarket(_market, now);
         Market(_market).cloneConstructor(_decimals)

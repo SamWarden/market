@@ -7,7 +7,7 @@ import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "./balancer/BPool.sol";
 import "./ConditionalToken.sol";
 
-contract Market is BPool {
+contract Market is Chainlink, BPool {
     using SafeMath for uint256, uint8;
 
     enum Stages {Created, Open, Closed}
@@ -16,11 +16,13 @@ contract Market is BPool {
     Results result = Results.Unknown;
     Stages stage = Stages.Created;
 
-    address winningToken;
-    uint256 collateralCurrency;
     address chainlinkPriceFeed;
+    uint256 collateralCurrency;
+
     int256 initialPrice;
     int256 finalPrice;
+    address winningToken;
+
     uint256 created;
     uint256 duration;
 
@@ -51,9 +53,8 @@ contract Market is BPool {
         collateralToken = _collateralToken;
         bearToken = _bearToken;
         bullToken = _bullToken;
-        finalPrice = 0;
+        chainlinkPriceFeed = _chainlinkPriceFeed;
         created = now;
-        totalRedemption = 0;
 
         stage = Stages.Open;
     }
@@ -72,14 +73,11 @@ contract Market is BPool {
         _lock_
         atStage(Stages.Open)
     {
+        // created + duration < now
         require(
             created.add(duration) < now,
             "Market closing time hasn't yet arrived"
         );
-
-        //Get chainlink price feed by _collateralCurrency
-        // address _chainlinkPriceFeed =
-        //     baseCurrencyToChainlinkFeed[collateralCurrency];
 
         //TODO: query chainlink by valid timestamp
         finalPrice = getLatestPrice(AggregatorV3Interface(chainlinkPriceFeed));
