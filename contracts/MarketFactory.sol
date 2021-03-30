@@ -89,24 +89,31 @@ contract MarketFactory is Ownable {
         //TODO: correct the calculation
         uint256 _swapFee = calcSwapFee(_collateralDecimals);
 
-        //Create a pool of the balancer
-        //TODO: use the market instead of the pool
-        address _marketAddress = cloneMarket(_bearToken, _bullToken);
-        Market _market = Market(_marketAddress)
+        //Get chainlink price feed by _feedCurrencyPair
+        address _chainlinkPriceFeed = feeds[_feedCurrencyPair];
 
         //Contract factory (clone) for two ERC20 tokens
         ConditionalToken _bearToken = cloneBearToken(_collateralDecimals);
         ConditionalToken _bullToken = cloneBullToken(_collateralDecimals);
 
+        //Create a pool of the balancer
+        //TODO: use the market instead of the pool
+        address _marketAddress = cloneMarket(_bearToken, _bullToken);
+        Market _market = Market(_marketAddress)
 
-        //Add conditional and collateral tokens to the pool
-        addConditionalToken(_market, _bearToken, _initialBalance);
-        addConditionalToken(_market, _bullToken, _initialBalance);
-        addCollateralToken(_market, _collateralToken, _initialBalance);
+        //Add conditional and collateral tokens to the pool with liqudity
+        addConditionalToken(_marketAddress, _bearToken, _initialBalance);
+        addConditionalToken(_marketAddress, _bullToken, _initialBalance);
+        addCollateralToken(_marketAddress, _collateralToken, _initialBalance);
 
         //mint the LP token and send it to msg.sender
+        _market.buy(_initialBalance)
+
+        //Send bought conditional token to the sender
+        _bullToken.transfer(msg.sender, _initialBalance);
+        _bearToken.transfer(msg.sender, _initialBalance);
+
         // _market.joinswapExternAmountIn(address(_collateralToken), _initialBalance, 0);
-        // _market.transfer(msg.sender, _initialBalance);
 
         //TODO: send _initialBalance to the pool as the freezed money
         //_collateralToken.transferFrom(msg.sender, address(_pool), _initialBalance);
@@ -116,15 +123,6 @@ contract MarketFactory is Ownable {
 
         //Release the pool and allow public swaps
         _market.release();
-
-        //Get chainlink price feed by _feedCurrencyPair
-        address _chainlinkPriceFeed =
-            feeds[_feedCurrencyPair];
-
-        int256 _initialPrice =
-            getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
-
-        require(_initialPrice > 0, "Chainlink error");
 
         marktes[_marketAddress] = true;
         emit Created(_marketAddress, now);
@@ -166,19 +164,19 @@ contract MarketFactory is Ownable {
         return ConditionalToken(_bullToken);
     }
 
-    function addConditionalToken(Market _market, ConditionalToken _conditionalToken, uint256 _conditionalBalance)
+    function addConditionalToken(address _market, ConditionalToken _conditionalToken, uint256 _conditionalBalance)
         internal
     {
         //Mint bear and bull tokens
         _conditionalToken.mint(address(this), _conditionalBalance);
 
         //To allow the market to mint a conditional token
-        _conditionalToken.transferOwnership(address(_market));
+        _conditionalToken.transferOwnership(_market);
 
         addToken(_pool, _conditionalToken, _conditionalBalance, CONDITIONAL_TOKEN_WEIGHT);
     }
 
-    function addCollateralToken(Market _market, IERC20 _collateralToken, uint256 _collateralBalance)
+    function addCollateralToken(address _market, IERC20 _collateralToken, uint256 _collateralBalance)
         internal
     {
         //Pull collateral tokens from sender
@@ -188,13 +186,13 @@ contract MarketFactory is Ownable {
         addToken(_pool, _collateralToken, _collateralBalance, COLLATERAL_TOKEN_WEIGHT);
     }
 
-    function addToken(Market _market, IERC20 token, uint256 balance, uint256 denorm)
+    function addToken(address _market, IERC20 token, uint256 balance, uint256 denorm)
         internal
     {
         //Approve pool
-        token.approve(address(_market), balance);
+        token.approve(_market, balance);
 
         //Add token to the pool
-        _market.bind(address(token), balance, denorm);
+        Market(_market).bind(address(token), balance, denorm);
     }
 }
