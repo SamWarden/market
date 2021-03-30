@@ -17,7 +17,8 @@ contract Market is Chainlink, BPool {
     Stages stage = Stages.Created;
 
     address chainlinkPriceFeed;
-    uint256 collateralCurrency;
+    string collateralCurrency;
+    string feedCurrencyPair;
 
     int256 initialPrice;
     int256 finalPrice;
@@ -40,26 +41,39 @@ contract Market is Chainlink, BPool {
 
     // constructor() public {}
 
-    function cloneConstructor()
+    //Call the method after clone Market
+    function cloneConstructor(
+        IERC20 _collateralToken,
+        ConditionalToken _bearToken,
+        ConditionalToken _bullToken,
+        uint256 _duration,
+        string _collateralCurrency,
+        string _feedCurrencyPair,
+        address _chainlinkPriceFeed
+    )
         external
         _logs_
         //_lock_
         onlyOwner
         atStage(Stages.Created)
     {
+        //Get initial price from chainlink
         int256 _initialPrice =
             getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
 
         require(_initialPrice > 0, "Chainlink error");
 
-        collateralCurrency = _collateralCurrency;
-        initialPrice = _initialPrice;
-        duration = _duration;
         collateralToken = _collateralToken;
         bearToken = _bearToken;
         bullToken = _bullToken;
-        chainlinkPriceFeed = _chainlinkPriceFeed;
+
         created = now;
+        duration = _duration;
+        initialPrice = _initialPrice;
+
+        collateralCurrency = _collateralCurrency;
+        feedCurrencyPair = _feedCurrencyPair;
+        chainlinkPriceFeed = _chainlinkPriceFeed;
 
         stage = Stages.Open;
     }
@@ -78,15 +92,16 @@ contract Market is Chainlink, BPool {
         _lock_
         atStage(Stages.Open)
     {
-        // created + duration < now
+        // now > created + duration
         require(
-            created.add(duration) < now,
+            now > created.add(duration),
             "Market closing time hasn't yet arrived"
         );
 
-        //TODO: query chainlink by valid timestamp
-        finalPrice = getLatestPrice(AggregatorV3Interface(chainlinkPriceFeed));
+        //TODO: config the method of Chainlink
+        finalPrice = getHistoricalPriceByTimestamp(AggregatorV3Interface(chainlinkPriceFeed), created.add(duration));
 
+        //TODO: maybe should move it to the method?
         require(finalPrice > 0, "Chainlink error");
         //TODO: require(initialPrice != _finalPrice, "Price didn't change");
 
