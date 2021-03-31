@@ -93,7 +93,7 @@ contract MarketFactory is Ownable {
         //TODO: think what if _collateralDecimals is small
         //TODO: test if possible to set BPool.BONE as 10**_collateralDecimals
         //TODO: correct the calculation
-        uint256 _swapFee = calcSwapFee(_collateralDecimals);
+        // uint256 _swapFee = calcSwapFee(_collateralDecimals);
 
         //Contract factory (clone) for two ERC20 tokens
         ConditionalToken _bearToken = cloneBearToken(_collateralDecimals);
@@ -112,7 +112,8 @@ contract MarketFactory is Ownable {
         Market _market = Market(_marketAddress);
 
         //Set the swap fee
-        _market.setSwapFee(_swapFee);
+        // _market.setSwapFee(_swapFee);
+        _market.setSwapFee(calcSwapFee(_collateralDecimals));
 
         //Add conditional and collateral tokens to the pool with liqudity
         addConditionalToken(_marketAddress, _bearToken, _initialBalance);
@@ -135,9 +136,10 @@ contract MarketFactory is Ownable {
         return _marketAddress;
     }
 
-    function calcSwapFee(uint8 _decimals) public view returns (uint8) {
+    function calcSwapFee(uint8 _decimals) public pure returns (uint16) {
         //TODO: make SafeMath.pow here
-        return (10 ** _decimals).div(1000).mul(3); // 0.3%
+        // return (10 ** _decimals).div(1000).mul(3); // 0.3%
+        return 10 ** _decimals / 1000 * 3; // 0.3%
     }
 
     function isMarket(address _market) public view returns (bool) {
