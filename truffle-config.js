@@ -20,8 +20,8 @@
 
 const HDWalletProvider = require("@truffle/hdwallet-provider");
 
-const privateKey = fs.readFileSync(".secret").toString().trim();
 const fs = require("fs");
+const privateKey = fs.readFileSync(".secret").toString().trim();
 
 const ropstenUrl = "https://ropsten.infura.io/v3/c010ef4cc4754cfba5eba886a7508afd";
 const bscTestnetUrl = "https://data-seed-prebsc-1-s1.binance.org:8545";
