@@ -8,9 +8,10 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "./ConditionalToken.sol";
 import "./Market.sol";
-import "./balancer/BConst.sol";
+import "./Chainlink.sol";
+// import "./balancer/BConst.sol";
 
-contract MarketFactory is Ownable {
+contract MarketFactory is  Ownable, Chainlink{
     using SafeMath for uint256;
     using SafeMath for uint8;
 
@@ -41,7 +42,7 @@ contract MarketFactory is Ownable {
     uint256 public constant CONDITIONAL_TOKEN_WEIGHT = 10 * 10**18;
     uint256 public constant COLLATERAL_TOKEN_WEIGHT  = CONDITIONAL_TOKEN_WEIGHT * 2;
 
-    constructor(address _factory) public {
+    constructor() public {
         baseMarket = address(new Market());
         //Merge two tokens to baseConditionalToken
         baseBearToken = address(new ConditionalToken("Bear", "Bear"));
@@ -56,8 +57,7 @@ contract MarketFactory is Ownable {
         //!WRONG ADDRESS
         colleteralCurrencies["DAI"] = 0x9326BFA02ADD2366b30bacB125260Af641031331;
 
-        //TODO: what if to inherit the factory?
-        // BFactory factory = BFactory(_factory);
+        //TODO: what if to inherit the BFactory?
     }
 
     function create(
