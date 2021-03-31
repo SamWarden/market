@@ -6,9 +6,9 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "./balancer/BPool.sol";
 import "./ConditionalToken.sol";
-import "./Chainlink.sol";
+import "./MarketFactory.sol";
 
-contract Market is Chainlink, BPool {
+contract Market is BPool {
     using SafeMath for uint256;
     using SafeMath for uint8;
 
@@ -61,7 +61,7 @@ contract Market is Chainlink, BPool {
     {
         //Get initial price from chainlink
         int256 _initialPrice =
-            getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
+            MarketFactory(owner()).getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
 
         require(_initialPrice > 0, "Chainlink error");
 
@@ -101,7 +101,7 @@ contract Market is Chainlink, BPool {
         );
 
         //TODO: config the method of Chainlink
-        finalPrice = getHistoricalPriceByTimestamp(AggregatorV3Interface(chainlinkPriceFeed), created.add(duration));
+        finalPrice = MarketFactory(owner()).getHistoricalPriceByTimestamp(AggregatorV3Interface(chainlinkPriceFeed), created.add(duration));
 
         //TODO: maybe should move it to the method?
         require(finalPrice > 0, "Chainlink error");
