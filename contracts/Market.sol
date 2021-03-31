@@ -6,9 +6,11 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "./balancer/BPool.sol";
 import "./ConditionalToken.sol";
+import "./Chainlink.sol";
 
 contract Market is Chainlink, BPool {
-    using SafeMath for uint256, uint8;
+    using SafeMath for uint256;
+    using SafeMath for uint8;
 
     enum Stages {Created, Open, Closed}
     enum Results {Unknown, Bull, Bear}
@@ -47,8 +49,8 @@ contract Market is Chainlink, BPool {
         ConditionalToken _bearToken,
         ConditionalToken _bullToken,
         uint256 _duration,
-        string _collateralCurrency,
-        string _feedCurrencyPair,
+        string memory _collateralCurrency,
+        string memory _feedCurrencyPair,
         address _chainlinkPriceFeed
     )
         external
@@ -115,7 +117,7 @@ contract Market is Chainlink, BPool {
             result = Results.Bear;
         }
 
-        emit Closed(finalPrice, now);
+        // emit Closed(finalPrice, now);
     }
 
     //Buy new token pair for collateral token
@@ -137,7 +139,7 @@ contract Market is Chainlink, BPool {
         //Increase total deposited collateral
         totalDeposit = totalDeposit.add(_amount);
 
-        emit Buy(msg.sender, _amount, now);
+        // emit Buy(msg.sender, _amount, now);
     }
 
     function redeem(uint256 _amount)
@@ -158,6 +160,6 @@ contract Market is Chainlink, BPool {
         //Increase total redemed collateral
         totalRedemption = totalRedemption.add(_amount);
 
-        emit Redeem(_marketID, now);
+        // emit Redeem(_marketID, now);
     }
 }

@@ -13,7 +13,7 @@
 
 pragma solidity ^0.6.0;
 
-contract BColor {
+interface BColor {
     function getColor()
         external view
         returns (bytes32);
@@ -21,7 +21,7 @@ contract BColor {
 
 contract BBronze is BColor {
     function getColor()
-        external view
+        external view override
         returns (bytes32) {
             return bytes32("BRONZE");
         }
