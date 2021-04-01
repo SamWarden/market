@@ -17,9 +17,9 @@ describe("Market", async () => {
     console.log(market.address);
     console.log(market.deployTransaction.hash);
 
-    await market.deplyed();
+    await market.deployed();
 
     console.log(await market.getStage());
-    expect(await market.getStage()).to.equal("Created");
+    expect(await market.getStage()).to.eq(0);
   });
 });
