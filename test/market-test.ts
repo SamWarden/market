@@ -2,15 +2,16 @@ import { ethers } from "hardhat";
 import { Signer, ContractFactory, Contract } from "ethers";
 import { expect } from "chai";
 
-describe("Market", async function () {
+describe("Market", async () => {
+  console.log("start");
   let accounts: Signer[];
-  const Market: ContractFactory = await ethers.getContractFactory("Market");
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     accounts = await ethers.getSigners();
   });
 
-  it("test_deploy", async function () {
+  it("test_deploy", async () => {
+    const Market: ContractFactory = await ethers.getContractFactory("Market");
     const market: Contract = await Market.deploy();
 
     console.log(market.address);
