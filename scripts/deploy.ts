@@ -11,8 +11,8 @@ async function deploy_contract(factory: ContractFactory): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const Market: ContractFactory = await ethers.getContractFactory("Market");
-  await deploy_contract(Market);
+  const MarketFactory: ContractFactory = await ethers.getContractFactory("MarketFactory");
+  await deploy_contract(MarketFactory);
 }
 
 main()
