@@ -7,6 +7,7 @@ import "@nomiclabs/hardhat-waffle";
 import "@typechain/hardhat";
 import "@nomiclabs/hardhat-etherscan";
 import "hardhat-gas-reporter";
+import "hardhat-contract-sizer";
 // TODO: reenable solidity-coverage when it works
 // import "solidity-coverage";
 
