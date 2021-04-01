@@ -11,6 +11,7 @@ import "./Market.sol";
 import "./Chainlink.sol";
 // import "./balancer/BConst.sol";
 
+//TODO: what if to inherit the BFactory?
 contract MarketFactory is  Ownable, Chainlink{
     using SafeMath for uint256;
     using SafeMath for uint8;
@@ -27,9 +28,6 @@ contract MarketFactory is  Ownable, Chainlink{
     //TODO: add list of markets
     mapping(address => bool) public markets;
     mapping(string => address) public colleteralCurrencies;
-    mapping(string => address) public feeds;
-
-    string[] public feedPairs;
 
     //Variables
     // BFactory private factory;
@@ -42,22 +40,13 @@ contract MarketFactory is  Ownable, Chainlink{
     uint256 public constant CONDITIONAL_TOKEN_WEIGHT = 10 * 10**18;
     uint256 public constant COLLATERAL_TOKEN_WEIGHT  = CONDITIONAL_TOKEN_WEIGHT * 2;
 
-    constructor() public {
+    constructor(address _collateralToken) public {
         baseMarket = address(new Market());
         //Merge two tokens to baseConditionalToken
         baseBearToken = address(new ConditionalToken("Bear", "Bear"));
         baseBullToken = address(new ConditionalToken("Bull", "Bull"));
 
-        //TODO: Add moreoracles
-        //Network: Kovan Aggregator: ETH/USD
-        feeds[
-            "ETH/USD"
-        ] = 0x9326BFA02ADD2366b30bacB125260Af641031331;
-
-        //!WRONG ADDRESS
-        colleteralCurrencies["DAI"] = 0x9326BFA02ADD2366b30bacB125260Af641031331;
-
-        //TODO: what if to inherit the BFactory?
+        colleteralCurrencies["DAI"] = _collateralToken; //0x9326BFA02ADD2366b30bacB125260Af641031331; //!WRONG ADDRESS
     }
 
     function create(
@@ -172,19 +161,6 @@ contract MarketFactory is  Ownable, Chainlink{
             _chainlinkPriceFeed
         );
         return _market;
-    }
-
-    function setFeed(
-        string memory _currencyPair,
-        address _chainlinkFeed
-    ) public onlyOwner {
-        //TODO: or allow set address(0) and delete the pair from feedPairs
-        require(_chainlinkFeed != address(0), "Address of chainlink feed cannot be 0");
-        //Save the _currencyPair to feedPairs if it isn't there and add the feed with the pair
-        if (feeds[_currencyPair] == address(0)) {
-            feedPairs.push(_currencyPair);
-        }
-        feeds[_currencyPair] = _chainlinkFeed; 
     }
 
     function cloneBearToken(uint8 _decimals) internal returns (ConditionalToken) {

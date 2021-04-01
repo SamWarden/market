@@ -10,7 +10,31 @@ import "./ConditionalToken.sol";
 contract Chainlink is Ownable {
     // using SafeMath for uint256, uint8;
 
+    mapping(string => address) public feeds;
+    string[] public feedPairs; //list of keys for `feeds`
+
     AggregatorV3Interface internal priceFeed;
+
+    constructor() public {
+        //TODO: Add moreoracles
+        //Network: Kovan Aggregator: ETH/USD
+        feeds[
+            "ETH/USD"
+        ] = 0x9326BFA02ADD2366b30bacB125260Af641031331;
+    }
+
+    function setFeed(
+        string memory _currencyPair,
+        address _chainlinkFeed
+    ) public onlyOwner {
+        //TODO: or allow set address(0) and delete the pair from feedPairs
+        require(_chainlinkFeed != address(0), "Address of chainlink feed cannot be 0");
+        //Save the _currencyPair to feedPairs if it isn't there and add the feed with the pair
+        if (feeds[_currencyPair] == address(0)) {
+            feedPairs.push(_currencyPair);
+        }
+        feeds[_currencyPair] = _chainlinkFeed; 
+    }
 
     /**
      * Returns the latest price
