@@ -13,7 +13,7 @@ contract Market is BPool {
     using SafeMath for uint8;
 
     enum Stages {Created, Open, Closed}
-    enum Results {Unknown, Bull, Bear}
+    enum Results {Unknown, Bull, Bear} //Add Draw result
 
     Results result = Results.Unknown;
     Stages stage = Stages.Created;
@@ -56,14 +56,13 @@ contract Market is BPool {
         external
         _logs_
         //_lock_
-        onlyOwner
+        // onlyOwner
         atStage(Stages.Created)
     {
         //Get initial price from chainlink
-        int256 _initialPrice =
-            MarketFactory(owner()).getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
+        // int256 _initialPrice = MarketFactory(owner()).getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
 
-        require(_initialPrice > 0, "Chainlink error");
+        //require(_initialPrice > 0, "Chainlink error");
 
         collateralToken = _collateralToken;
         bearToken = _bearToken;
@@ -71,7 +70,7 @@ contract Market is BPool {
 
         created = now;
         duration = _duration;
-        initialPrice = _initialPrice;
+        //initialPrice = _initialPrice;
 
         collateralCurrency = _collateralCurrency;
         feedCurrencyPair = _feedCurrencyPair;
