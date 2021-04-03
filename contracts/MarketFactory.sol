@@ -12,7 +12,7 @@ import "./Chainlink.sol";
 // import "./balancer/BConst.sol";
 
 //TODO: what if to inherit the BFactory?
-contract MarketFactory is  Ownable, Chainlink{
+contract MarketFactory is Ownable, Chainlink{
     using SafeMath for uint256;
     using SafeMath for uint8;
 
