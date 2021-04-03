@@ -90,49 +90,49 @@ contract BPool is BBronze, BToken, BMath, Ownable {
         _finalized = false;
     }
 
-    function isPublicSwap()
-        external view
-        returns (bool)
-    {
-        return _publicSwap;
-    }
-
-    function isFinalized()
-        external view
-        returns (bool)
-    {
-        return _finalized;
-    }
-
-    function isBound(address t)
-        external view
-        returns (bool)
-    {
-        return _records[t].bound;
-    }
-
-    function getNumTokens()
-        external view
-        returns (uint) 
-    {
-        return _tokens.length;
-    }
-
-    function getCurrentTokens()
-        external view _viewlock_
-        returns (address[] memory tokens)
-    {
-        return _tokens;
-    }
-
-    function getFinalTokens()
-        external view
-        _viewlock_
-        returns (address[] memory tokens)
-    {
-        require(_finalized, "ERR_NOT_FINALIZED");
-        return _tokens;
-    }
+//    function isPublicSwap()
+//        external view
+//        returns (bool)
+//    {
+//        return _publicSwap;
+//    }
+//
+//    function isFinalized()
+//        external view
+//        returns (bool)
+//    {
+//        return _finalized;
+//    }
+//
+//    function isBound(address t)
+//        external view
+//        returns (bool)
+//    {
+//        return _records[t].bound;
+//    }
+//
+//    function getNumTokens()
+//        external view
+//        returns (uint) 
+//    {
+//        return _tokens.length;
+//    }
+//
+//    function getCurrentTokens()
+//        external view _viewlock_
+//        returns (address[] memory tokens)
+//    {
+//        return _tokens;
+//    }
+//
+//    function getFinalTokens()
+//        external view
+//        _viewlock_
+//        returns (address[] memory tokens)
+//    {
+//        require(_finalized, "ERR_NOT_FINALIZED");
+//        return _tokens;
+//    }
 
     function getDenormalizedWeight(address token)
         external view
