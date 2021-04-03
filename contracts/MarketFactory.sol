@@ -31,9 +31,9 @@ contract MarketFactory is  Ownable, Chainlink{
 
     //Variables
     // BFactory private factory;
-    address private baseMarket;
-    address private baseBearToken;
-    address private baseBullToken;
+    address public baseMarket;
+    address public baseBearToken;
+    address public baseBullToken;
 
     //Constants
     // uint256 public constant CONDITIONAL_TOKEN_WEIGHT = (10).mul(BConst.BONE);
