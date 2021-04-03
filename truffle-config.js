@@ -18,12 +18,16 @@
  *
  */
 
+const dotenv = require("dotenv");
+dotenv.config();
+
 const HDWalletProvider = require("@truffle/hdwallet-provider");
 
-const fs = require("fs");
-const privateKey = fs.readFileSync(".secret").toString().trim();
+const privateKey = process.env.BNC_PRIVATE_KEY;
 
-const ropstenUrl = "https://ropsten.infura.io/v3/c010ef4cc4754cfba5eba886a7508afd";
+const INFURA_PROJECT_ID = process.env.INFURA_PROJECT_ID;
+const kovanUrl = `https://kovan.infura.io/v3/${INFURA_PROJECT_ID}`;
+const ropstenUrl = `https://ropsten.infura.io/v3/${INFURA_PROJECT_ID}`;
 const bscTestnetUrl = "https://data-seed-prebsc-1-s1.binance.org:8545";
 const bscMainnetUrl = "https://bsc-dataseed.binance.org/";
 
@@ -53,6 +57,11 @@ module.exports = {
     bsc_testnet: {
       provider: () => new HDWalletProvider([privateKey], bscTestnetUrl),
       network_id: 97,
+    },
+    kovan: {
+      provider: () => new HDWalletProvider([privateKey], kovanUrl),
+      network_id: 42,
+      gas: 6721975,
     },
     bsc_mainnet: {
       provider: () => new HDWalletProvider([privateKey], bscMainnetUrl),
@@ -96,7 +105,7 @@ module.exports = {
       settings: {          // See the solidity docs for advice about optimization and evmVersion
         optimizer: {
           enabled: true,
-          runs: 200,
+          runs: 1,
         },
       //  evmVersion: "byzantium",
       },
