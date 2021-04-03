@@ -4,6 +4,7 @@ pragma solidity ^0.6.0;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
+import "./Ownable.sol";
 import "./balancer/BPool.sol";
 import "./ConditionalToken.sol";
 import "./MarketFactory.sol";
@@ -13,7 +14,7 @@ contract Market is BPool {
     using SafeMath for uint8;
 
     enum Stages {Created, Open, Closed}
-    enum Results {Unknown, Bull, Bear}
+    enum Results {Unknown, Bull, Bear} //Add the draw
 
     Results result = Results.Unknown;
     Stages stage = Stages.Created;
@@ -56,6 +57,7 @@ contract Market is BPool {
         //_lock_
         atStage(Stages.Created)
     {
+        Ownable.cloneConstructor();
         //Get initial price from chainlink
         // int256 _initialPrice =
         //     MarketFactory(owner()).getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
