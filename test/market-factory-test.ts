@@ -29,8 +29,6 @@ describe("MarketFactory", async () => {
     // Deploy DAI contract
     const dai: Contract = await TToken.deploy("DAI", "DAI", 18);
     await dai.deployed();
-    // Mint tokens to the account
-    await dai.mint(signer.address, ethers.utils.parseEther(collateralBalance));
 
     // Deploy the MarketFactory contract
     const marketFactory: Contract = await MarketFactory.deploy(dai.address);
@@ -40,6 +38,11 @@ describe("MarketFactory", async () => {
     // Listen events from LOG_CALL
     market.on(await market.filters.LOG_CALL(), (res) => {console.log(res)});
 
+    // Mint tokens to the account
+    await dai.mint(signer.address, ethers.utils.parseEther(collateralBalance));
+    // Approve collateral balance to the factory
+    await dai.approve(marketFactory.address, ethers.utils.parseEther(collateralBalance));
+
     // Log addresses
     console.log("Signer_address: " + signer.address);
     console.log("MarketFactory_address: " + marketFactory.address);
@@ -48,6 +51,6 @@ describe("MarketFactory", async () => {
     console.log("Market_owner: " + await market.owner());
 
     // Create market
-    await marketFactory.create("DAI", "ETH/USD", duration, collateralBalance);
+    await marketFactory.create("DAI", "ETH/USD", duration, ethers.utils.parseEther(collateralBalance));
   });
 });
