@@ -71,6 +71,9 @@ contract MarketFactory is Ownable, Chainlink{
         ERC20 _collateralToken = ERC20(colleteralCurrencies[_collateralCurrency]);
         uint8 _collateralDecimals = _collateralToken.decimals();
 
+        //Pull collateral tokens from sender
+        _collateralToken.transferFrom(msg.sender, address(this), _approvedBalance);
+
         //Estamate balance tokens
         uint256 _initialBalance = _approvedBalance.div(2);
 
@@ -86,7 +89,7 @@ contract MarketFactory is Ownable, Chainlink{
 
         //Create a pool of the balancer
         //TODO: use the market instead of the pool
-        address _marketAddress = cloneMarket(
+        Market _market = cloneMarket(
             _collateralToken,
             _bearToken,
             _bullToken,
@@ -94,7 +97,7 @@ contract MarketFactory is Ownable, Chainlink{
             _collateralCurrency,
             _feedCurrencyPair
         );
-        Market _market = Market(_marketAddress);
+        address _marketAddress = address(_market);
 
         //Set the swap fee
         // _market.setSwapFee(_swapFee);
@@ -103,7 +106,8 @@ contract MarketFactory is Ownable, Chainlink{
         //Add conditional and collateral tokens to the pool with liqudity
         addConditionalToken(_marketAddress, _bearToken, _initialBalance);
         addConditionalToken(_marketAddress, _bullToken, _initialBalance);
-        addCollateralToken(_marketAddress, _collateralToken, _initialBalance);
+        addToken(_marketAddress, _collateralToken, _collateralBalance, COLLATERAL_TOKEN_WEIGHT);
+        // addCollateralToken(_marketAddress, _collateralToken, _initialBalance);
 
         //Mint the conditional tokens
         _market.buy(_initialBalance);
@@ -140,14 +144,14 @@ contract MarketFactory is Ownable, Chainlink{
         string memory _feedCurrencyPair
     )
         internal
-        returns (address)
+        returns (Market)
     {
         //Get chainlink price feed by _feedCurrencyPair
         address _chainlinkPriceFeed = feeds[_feedCurrencyPair];
 
-        address _market = Clones.clone(baseMarket);
-        // emit NewMarket(_market, now);
-        Market(_market).cloneConstructor(
+        address _market = Market(Clones).clone(baseMarket);
+        // emit NewMarket(address(_market), now);
+        _market.cloneConstructor(
             _collateralToken,
             _bearToken,
             _bullToken,
@@ -160,10 +164,10 @@ contract MarketFactory is Ownable, Chainlink{
     }
 
     function cloneConditionalToken(string memory _name, string memory _symbol, uint8 _decimals) internal returns (ConditionalToken) {
-        address _conditionalToken = Clones.clone(baseConditionalToken);
-        // emit NewConditionalToken(_conditionalToken, now, _name, _symbol, _decimals);
-        ConditionalToken(_conditionalToken).cloneConstructor(_name, _symbol, _decimals);
-        return ConditionalToken(_conditionalToken);
+        address _conditionalToken = ConditionalToken(Clones.clone(baseConditionalToken));
+        // emit NewConditionalToken(address(_conditionalToken), now, _name, _symbol, _decimals);
+        _conditionalToken.cloneConstructor(_name, _symbol, _decimals);
+        return _conditionalToken;
     }
 
     function addConditionalToken(address _market, ConditionalToken _conditionalToken, uint256 _conditionalBalance)
@@ -178,15 +182,15 @@ contract MarketFactory is Ownable, Chainlink{
         addToken(_market, _conditionalToken, _conditionalBalance, CONDITIONAL_TOKEN_WEIGHT);
     }
 
-    function addCollateralToken(address _market, ERC20 _collateralToken, uint256 _collateralBalance)
-        internal
-    {
-        //Pull collateral tokens from sender
-        //TODO: try to make the transfer to the pool directly
-        _collateralToken.transferFrom(msg.sender, address(this), _collateralBalance);
+    // function addCollateralToken(address _market, ERC20 _collateralToken, uint256 _collateralBalance)
+    //     internal
+    // {
+    //     //Pull collateral tokens from sender
+    //     //TODO: try to make the transfer to the pool directly
+    //     _collateralToken.transferFrom(msg.sender, address(this), _collateralBalance);
 
-        addToken(_market, _collateralToken, _collateralBalance, COLLATERAL_TOKEN_WEIGHT);
-    }
+    //     addToken(_market, _collateralToken, _collateralBalance, COLLATERAL_TOKEN_WEIGHT);
+    // }
 
     function addToken(address _market, ERC20 token, uint256 balance, uint256 denorm)
         internal
