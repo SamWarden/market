@@ -8,10 +8,11 @@ import "./Ownable.sol";
 contract ConditionalToken is ERC20, Ownable {
     uint8 private _decimals;
 
-    constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) public {}
-
-    function cloneConstructor(uint8 decimals_) public {
+    function cloneConstructor(uint8 decimals_, string memory name_, string memory symbol_) public {
+        Ownable.cloneConstructor();
         _decimals = decimals_;
+        _name = name_;
+        _symbol = symbol_;
     }
 
     function decimals() public view override returns (uint8) {
