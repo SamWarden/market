@@ -17,22 +17,21 @@ contract MarketFactory is Ownable, Chainlink{
     using SafeMath for uint8;
 
     //TODO: add more info to events
-    event Created(uint256 indexed marketID, uint256 _time);
-    event Resumed(uint256 indexed marketID, uint256 _time);
-    event Closed(uint256 indexed marketID, uint256 _time);
-    event Buy(uint256 indexed marketID, uint256 _time);
-    event Redeem(uint256 indexed marketID, uint256 _time);
-    event NewBearToken(address indexed contractAddress, uint256 _time);
-    event NewBullToken(address indexed contractAddress, uint256 _time);
+    // event Created(uint256 indexed marketID, uint256 _time);
+    // event Resumed(uint256 indexed marketID, uint256 _time);
+    // event Closed(uint256 indexed marketID, uint256 _time);
+    // event Buy(uint256 indexed marketID, uint256 _time);
+    // event Redeem(uint256 indexed marketID, uint256 _time);
+    // event NewConditionalToken(address indexed contractAddress, uint256 _time);
 
-    //TODO: add list of markets
+    //TODO: add list of markets and currencies
     mapping(address => bool) public markets;
     mapping(string => address) public colleteralCurrencies;
 
     //Variables
+    //TODO: maybe the variables should be private
     address public baseMarket;
-    address public baseBearToken;
-    address public baseBullToken;
+    address public baseConditionalToken;
 
     //Constants
     // uint256 public constant CONDITIONAL_TOKEN_WEIGHT = (10).mul(BConst.BONE);
@@ -41,9 +40,7 @@ contract MarketFactory is Ownable, Chainlink{
 
     constructor(address _collateralToken) public {
         baseMarket = address(new Market());
-        //Merge two tokens to baseConditionalToken
-        baseBearToken = address(new ConditionalToken("Bear", "Bear"));
-        baseBullToken = address(new ConditionalToken("Bull", "Bull"));
+        baseConditionalToken = address(new ConditionalToken());
 
         colleteralCurrencies["DAI"] = _collateralToken; //0x9326BFA02ADD2366b30bacB125260Af641031331; //!WRONG ADDRESS
     }
@@ -84,8 +81,8 @@ contract MarketFactory is Ownable, Chainlink{
         // uint256 _swapFee = calcSwapFee(_collateralDecimals);
 
         //Contract factory (clone) for two ERC20 tokens
-        ConditionalToken _bearToken = cloneBearToken(_collateralDecimals);
-        ConditionalToken _bullToken = cloneBullToken(_collateralDecimals);
+        ConditionalToken _bearToken = cloneConditionalToken("Bear", "Bear", _collateralDecimals);
+        ConditionalToken _bullToken = cloneConditionalToken("Bull", "Bull", _collateralDecimals);
 
         //Create a pool of the balancer
         //TODO: use the market instead of the pool
@@ -162,18 +159,11 @@ contract MarketFactory is Ownable, Chainlink{
         return _market;
     }
 
-    function cloneBearToken(uint8 _decimals) internal returns (ConditionalToken) {
-        address _bearToken = Clones.clone(baseBearToken);
-        // emit NewBearToken(_bearToken, now);
-        ConditionalToken(_bearToken).cloneConstructor(_decimals);
-        return ConditionalToken(_bearToken);
-    }
-
-    function cloneBullToken(uint8 _decimals) internal returns (ConditionalToken) {
-        address _bullToken = Clones.clone(baseBullToken);
-        // emit NewBullToken(_bullToken, now);
-        ConditionalToken(_bullToken).cloneConstructor(_decimals);
-        return ConditionalToken(_bullToken);
+    function cloneConditionalToken(string memory _name, string memory _symbol, uint8 _decimals) internal returns (ConditionalToken) {
+        address _conditionalToken = Clones.clone(baseConditionalToken);
+        // emit NewConditionalToken(_conditionalToken, now, _name, _symbol, _decimals);
+        ConditionalToken(_conditionalToken).cloneConstructor(_name, _symbol, _decimals);
+        return ConditionalToken(_conditionalToken);
     }
 
     function addConditionalToken(address _market, ConditionalToken _conditionalToken, uint256 _conditionalBalance)
