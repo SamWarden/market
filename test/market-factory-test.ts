@@ -12,7 +12,15 @@ describe("MarketFactory", async () => {
 
   it("test_deploy", async () => {
     const MarketFactory: ContractFactory = await ethers.getContractFactory("MarketFactory");
-    const marketFactory: Contract = await MarketFactory.deploy();
+    const TToken: ContractFactory = await ethers.getContractFactory("TToken");
+    const signer: SignerWithAddress = accounts[0];
+    const collateralBalance = "100000";
+
+    const dai: Contract = await TToken.deploy("DAI", "DAI", 18);
+    await dai.deployed();
+    await dai.mint(signer.address, ethers.utils.parseEther(collateralBalance));
+
+    const marketFactory: Contract = await MarketFactory.deploy(dai.address);
 
     console.log(marketFactory.address);
     console.log(marketFactory.deployTransaction.hash);
