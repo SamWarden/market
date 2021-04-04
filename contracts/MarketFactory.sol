@@ -109,6 +109,9 @@ contract MarketFactory is Ownable, Chainlink{
         addToken(_marketAddress, _collateralToken, _initialBalance, COLLATERAL_TOKEN_WEIGHT);
         // addCollateralToken(_marketAddress, _collateralToken, _initialBalance);
 
+        //Approve pool to buy tokens
+        _collateralToken.approve(_marketAddress, _initialBalance);
+
         //Mint the conditional tokens
         _market.buy(_initialBalance);
 
@@ -125,10 +128,12 @@ contract MarketFactory is Ownable, Chainlink{
         return _marketAddress;
     }
 
-    function calcSwapFee(uint8 _decimals) public pure returns (uint16) {
+    function calcSwapFee(uint256 _decimals) public pure returns (uint256) {
         //TODO: make SafeMath.pow here
         // return (10 ** _decimals).div(1000).mul(3); // 0.3%
-        return 10 ** _decimals / 1000 * 3; // 0.3%
+        // 10 ** _decimals / 1000 * 3
+        // return 10**(_decimals - 3) * 3; // 0.3%
+        return 10**18 / 10 - 1; // 0.3%
     }
 
     function isMarket(address _market) public view returns (bool) {
@@ -192,13 +197,13 @@ contract MarketFactory is Ownable, Chainlink{
     //     addToken(_market, _collateralToken, _collateralBalance, COLLATERAL_TOKEN_WEIGHT);
     // }
 
-    function addToken(address _market, ERC20 token, uint256 balance, uint256 denorm)
+    function addToken(address _market, ERC20 _token, uint256 _balance, uint256 _denorm)
         internal
     {
         //Approve pool
-        token.approve(_market, balance);
+        _token.approve(_market, _balance);
 
-        //Add token to the pool
-        Market(_market).bind(address(token), balance, denorm);
+        //Add _token to the pool
+        Market(_market).bind(address(_token), _balance, _denorm);
     }
 }
