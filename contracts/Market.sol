@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.6.0;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
-import "./Ownable.sol";
+import "./ERC20.sol";
+import "./OwnableClone.sol";
 import "./balancer/BPool.sol";
 import "./ConditionalToken.sol";
 import "./MarketFactory.sol";
@@ -33,7 +33,7 @@ contract Market is BPool {
     uint256 totalDeposit;
     uint256 totalRedemption;
 
-    IERC20 collateralToken;
+    ERC20 collateralToken;
     ConditionalToken bearToken;
     ConditionalToken bullToken;
 
@@ -44,7 +44,7 @@ contract Market is BPool {
 
     //Call the method after clone Market
     function cloneConstructor(
-        IERC20 _collateralToken,
+        ERC20 _collateralToken,
         ConditionalToken _bearToken,
         ConditionalToken _bullToken,
         uint256 _duration,
@@ -57,7 +57,7 @@ contract Market is BPool {
         //_lock_
         atStage(Stages.Created)
     {
-        Ownable.cloneConstructor();
+        OwnableClone.cloneConstructor();
         //Get initial price from chainlink
         // int256 _initialPrice =
         //     MarketFactory(owner()).getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));

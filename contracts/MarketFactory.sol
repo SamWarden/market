@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.6.0;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
+import "./ERC20.sol";
 import "./ConditionalToken.sol";
 import "./Market.sol";
 import "./Chainlink.sol";
@@ -106,7 +106,7 @@ contract MarketFactory is Ownable, Chainlink{
         //Add conditional and collateral tokens to the pool with liqudity
         addConditionalToken(_marketAddress, _bearToken, _initialBalance);
         addConditionalToken(_marketAddress, _bullToken, _initialBalance);
-        addToken(_marketAddress, _collateralToken, _collateralBalance, COLLATERAL_TOKEN_WEIGHT);
+        addToken(_marketAddress, _collateralToken, _initialBalance, COLLATERAL_TOKEN_WEIGHT);
         // addCollateralToken(_marketAddress, _collateralToken, _initialBalance);
 
         //Mint the conditional tokens
@@ -149,7 +149,7 @@ contract MarketFactory is Ownable, Chainlink{
         //Get chainlink price feed by _feedCurrencyPair
         address _chainlinkPriceFeed = feeds[_feedCurrencyPair];
 
-        address _market = Market(Clones).clone(baseMarket);
+        Market _market = Market(Clones.clone(baseMarket));
         // emit NewMarket(address(_market), now);
         _market.cloneConstructor(
             _collateralToken,
@@ -164,7 +164,7 @@ contract MarketFactory is Ownable, Chainlink{
     }
 
     function cloneConditionalToken(string memory _name, string memory _symbol, uint8 _decimals) internal returns (ConditionalToken) {
-        address _conditionalToken = ConditionalToken(Clones.clone(baseConditionalToken));
+        ConditionalToken _conditionalToken = ConditionalToken(Clones.clone(baseConditionalToken));
         // emit NewConditionalToken(address(_conditionalToken), now, _name, _symbol, _decimals);
         _conditionalToken.cloneConstructor(_name, _symbol, _decimals);
         return _conditionalToken;

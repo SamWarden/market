@@ -15,7 +15,7 @@ import "@openzeppelin/contracts/utils/Context.sol";
  * `onlyOwner`, which can be applied to your functions to restrict their use to
  * the owner.
  */
-abstract contract Ownable is Context {
+abstract contract OwnableClone is Context {
     address private _owner;
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
@@ -27,7 +27,7 @@ abstract contract Ownable is Context {
         cloneConstructor();
     }
 
-    function cloneConstructor () internal {
+    function cloneConstructor () internal virtual {
         address msgSender = _msgSender();
         _owner = msgSender;
         emit OwnershipTransferred(address(0), msgSender);
