@@ -13,11 +13,11 @@
 
 pragma solidity ^0.6.0;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "../OwnableClone.sol";
 import "./BToken.sol";
 import "./BMath.sol";
 
-contract BPool is BBronze, BToken, BMath, Ownable {
+contract BPool is BBronze, BToken, BMath, OwnableClone {
 
     struct Record {
         bool bound;   // is token bound to pool
