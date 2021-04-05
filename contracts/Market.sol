@@ -14,7 +14,7 @@ contract Market is BPool {
     using SafeMath for uint8;
 
     enum Stages {Created, Open, Closed}
-    enum Results {Unknown, Bull, Bear} //Add the draw
+    enum Results {Unknown, Bull, Bear, Draw} //Add the draw
 
     Results result = Results.Unknown;
     Stages stage = Stages.Created;
@@ -112,9 +112,11 @@ contract Market is BPool {
         if (finalPrice > initialPrice) {
             winningToken = address(bullToken);
             result = Results.Bull;
-        } else {
+        } else if (finalPrice < initialPrice) {
             winningToken = address(bearToken);
             result = Results.Bear;
+        } else {
+            result = Results.Draw;
         }
 
         // emit Closed(finalPrice, now);
@@ -151,9 +153,12 @@ contract Market is BPool {
         require(_amount > 0, "Invalid amount");
         require(totalDeposit >= totalRedemption.add(_amount), "No collateral left");
 
-        //Burn win tokens from a sender
-        ConditionalToken(winningToken).burnFrom(msg.sender, _amount);
-        //TODO: add Draw
+        if (result != Results.Draw) {
+            //Burn win tokens from a sender
+            ConditionalToken(winningToken).burnFrom(msg.sender, _amount);
+        } else {
+            //TODO: add Draw behavior
+        }
 
         //Send collateral tokens to sender
         collateralToken.transfer(msg.sender, _amount);
