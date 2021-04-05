@@ -151,8 +151,9 @@ contract Market is BPool {
         require(_amount > 0, "Invalid amount");
         require(totalDeposit >= totalRedemption.add(_amount), "No collateral left");
 
-        //Get win tokens from sender
-        ConditionalToken(winningToken).transferFrom(msg.sender, address(this), _amount);
+        //Burn win tokens from a sender
+        ConditionalToken(winningToken).burnFrom(msg.sender, _amount);
+        //TODO: add Draw
 
         //Send collateral tokens to sender
         collateralToken.transfer(msg.sender, _amount);
