@@ -65,8 +65,8 @@ contract Market is BPool {
         // require(_initialPrice > 0, "Chainlink error");
 
         collateralToken = _collateralToken;
-        bearToken = _bearToken;
         bullToken = _bullToken;
+        bearToken = _bearToken;
 
         created = now;
         duration = _duration;
@@ -154,12 +154,27 @@ contract Market is BPool {
         require(totalDeposit >= totalRedemption.add(_amount), "No collateral left");
 
         if (result != Results.Draw) {
+            //If there is winner
             //Burn win tokens from a sender
             ConditionalToken(winningToken).burnFrom(msg.sender, _amount);
         } else {
-            //TODO: add Draw behavior
-        }
+            // if a Draw
+            // conditionalToken -= conditionalTokenAllowance / ((bearAllow + bullAllow) / (amount * 2))
+            // Get allowance of conditional tokens from the sender
+            _bullAllowance = bullToken.allowance(msg.sender, address(this));
+            _bearAllowance = bearToken.allowance(msg.sender, address(this));
+            require(_bullAllowance + _bearAllowance < _amount * 2, "Total allowance of conditonal tokens is lower than the given amount");
+            // ratio = totalAllowance / conditionalAmount
+            uint256 ratio = (_bullAllowance + _bearAllowance) / (_amount * 2);
 
+            // if not 0, burn the tokens
+            if (_bullAllowance > 0) {
+               bullToken.burnFrom(msg.sender, _bullAllowance / ratio);
+            }
+            if (_bearAllowance > 0) {
+                bearToken.burnFrom(msg.sender, _bearAllowance / ratio);
+            }
+        }
         //Send collateral tokens to sender
         collateralToken.transfer(msg.sender, _amount);
 

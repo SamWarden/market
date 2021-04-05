@@ -84,15 +84,15 @@ contract MarketFactory is Ownable, Chainlink{
         // uint256 _swapFee = calcSwapFee(_collateralDecimals);
 
         //Contract factory (clone) for two ERC20 tokens
-        ConditionalToken _bearToken = cloneConditionalToken("Bear", "Bear", _collateralDecimals);
         ConditionalToken _bullToken = cloneConditionalToken("Bull", "Bull", _collateralDecimals);
+        ConditionalToken _bearToken = cloneConditionalToken("Bear", "Bear", _collateralDecimals);
 
         //Create a pool of the balancer
         //TODO: use the market instead of the pool
         Market _market = cloneMarket(
             _collateralToken,
-            _bearToken,
             _bullToken,
+            _bearToken,
             _duration,
             _collateralCurrency,
             _feedCurrencyPair
@@ -104,8 +104,8 @@ contract MarketFactory is Ownable, Chainlink{
         _market.setSwapFee(calcSwapFee(_collateralDecimals));
 
         //Add conditional and collateral tokens to the pool with liqudity
-        addConditionalToken(_marketAddress, _bearToken, _initialBalance);
         addConditionalToken(_marketAddress, _bullToken, _initialBalance);
+        addConditionalToken(_marketAddress, _bearToken, _initialBalance);
         addToken(_marketAddress, _collateralToken, _initialBalance, COLLATERAL_TOKEN_WEIGHT);
         // addCollateralToken(_marketAddress, _collateralToken, _initialBalance);
 
@@ -142,8 +142,8 @@ contract MarketFactory is Ownable, Chainlink{
 
     function cloneMarket(
         ERC20 _collateralToken,
-        ConditionalToken _bearToken,
         ConditionalToken _bullToken,
+        ConditionalToken _bearToken,
         uint256 _duration,
         string memory _collateralCurrency,
         string memory _feedCurrencyPair
@@ -158,8 +158,8 @@ contract MarketFactory is Ownable, Chainlink{
         // emit NewMarket(address(_market), now);
         _market.cloneConstructor(
             _collateralToken,
-            _bearToken,
             _bullToken,
+            _bearToken,
             _duration,
             _collateralCurrency,
             _feedCurrencyPair,
