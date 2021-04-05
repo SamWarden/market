@@ -17,7 +17,7 @@ contract MarketFactory is Ownable, Chainlink{
     using SafeMath for uint8;
 
     //TODO: add more info to events
-    // event Created(uint256 indexed marketID, uint256 _time);
+    event Created(address indexed market, string indexed feedCurrencyPair, string indexed collateralCurrency, uint256 time, uint256 duration);
     // event Resumed(uint256 indexed marketID, uint256 _time);
     // event Closed(uint256 indexed marketID, uint256 _time);
     // event Buy(uint256 indexed marketID, uint256 _time);
@@ -123,7 +123,7 @@ contract MarketFactory is Ownable, Chainlink{
         _market.finalize();
 
         markets[_marketAddress] = true;
-        // emit Created(_marketAddress, now);
+        emit Created(_marketAddress, _feedCurrencyPair, _collateralCurrency, now, _duration);
 
         return _marketAddress;
     }
