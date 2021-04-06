@@ -9,6 +9,7 @@ import "./ConditionalToken.sol";
 
 contract Chainlink is Ownable {
     // using SafeMath for uint256, uint8;
+    event SetFeed(string indexed currencyPair, address indexed chainlinkFeed, uint256 time);
 
     mapping(string => address) public feeds;
     string[] public feedPairs; //list of keys for `feeds`
@@ -27,13 +28,31 @@ contract Chainlink is Ownable {
         string memory _currencyPair,
         address _chainlinkFeed
     ) public onlyOwner {
-        //TODO: or allow set address(0) and delete the pair from feedPairs
-        require(_chainlinkFeed != address(0), "Address of chainlink feed cannot be 0");
-        //Save the _currencyPair to feedPairs if it isn't there and add the feed with the pair
-        if (feeds[_currencyPair] == address(0)) {
-            feedPairs.push(_currencyPair);
+        if (_chainlinkFeed != address(0)) {
+            // If it's going to add a new pair
+            // Save the _currencyPair to feedPairs if it isn't there
+            if (feeds[_currencyPair] == address(0)) {
+                feedPairs.push(_currencyPair);
+            }
+            // Add the address with the pair
+            feeds[_currencyPair] = _chainlinkFeed;
+        } else {
+            // If it's going to delete the pair
+            // Check that the pair is exists
+            require(feeds[_currencyPair] != address(0), "There isn't the currency pair in the list of feeds");
+            // Find and remove the pair
+            for (uint8 i = 0; i < feedPairs.length; i++) {
+                if (keccak256(abi.encodePacked(feedPairs[i])) == keccak256(abi.encodePacked(_currencyPair))) {
+                    // Shift the last element to index of the deleted pair
+                    feedPairs[i] = feedPairs[feedPairs.length - 1];
+                    feedPairs.pop();
+                    break;
+                }
+            }
+            // Clear the address of the pair
+            feeds[_currencyPair] = address(0);
         }
-        feeds[_currencyPair] = _chainlinkFeed; 
+        emit SetFeed(_currencyPair, _chainlinkFeed, now);
     }
 
     /**
