@@ -13,8 +13,25 @@ contract Market is BPool {
     using SafeMath for uint256;
     using SafeMath for uint8;
 
+    event Closed(
+        uint256 _time,
+        int256 finalPrice,
+        Results result,
+        address winningToken
+    );
+
+    event Buy(
+        uint256 indexed marketID,
+        uint256         _time
+    );
+
+    event Redeem(
+        uint256 indexed marketID,
+        uint256         _time
+    );
+
     enum Stages {Created, Open, Closed}
-    enum Results {Unknown, Bull, Bear, Draw} //Add the draw
+    enum Results {Unknown, Bull, Bear, Draw}
 
     Results result = Results.Unknown;
     Stages stage = Stages.Created;
@@ -119,7 +136,7 @@ contract Market is BPool {
             result = Results.Draw;
         }
 
-        // emit Closed(finalPrice, now);
+        emit Closed(now, finalPrice, result, winningToken);
     }
 
     //Buy new token pair for collateral token
@@ -161,8 +178,8 @@ contract Market is BPool {
             // if a Draw
             // conditionalToken -= conditionalTokenAllowance / ((bearAllow + bullAllow) / (amount * 2))
             // Get allowance of conditional tokens from the sender
-            _bullAllowance = bullToken.allowance(msg.sender, address(this));
-            _bearAllowance = bearToken.allowance(msg.sender, address(this));
+            uint256 _bullAllowance = bullToken.allowance(msg.sender, address(this));
+            uint256 _bearAllowance = bearToken.allowance(msg.sender, address(this));
             require(_bullAllowance + _bearAllowance < _amount * 2, "Total allowance of conditonal tokens is lower than the given amount");
             // ratio = totalAllowance / conditionalAmount
             uint256 ratio = (_bullAllowance + _bearAllowance) / (_amount * 2);
