@@ -17,11 +17,19 @@ contract MarketFactory is Ownable, Chainlink{
     using SafeMath for uint8;
 
     //TODO: add more info to events
-    event Created(address indexed market, string indexed feedCurrencyPair, string indexed collateralCurrency, uint256 time, uint256 duration);
-    // event Resumed(uint256 indexed marketID, uint256 _time);
-    // event Closed(uint256 indexed marketID, uint256 _time);
-    // event Buy(uint256 indexed marketID, uint256 _time);
-    // event Redeem(uint256 indexed marketID, uint256 _time);
+    event Created(
+        address indexed market,
+        string  indexed feedCurrencyPair,
+        string  indexed collateralCurrency,
+        uint256         time,
+        uint256         duration
+    );
+
+    event SetCurrency(
+        string  indexed currencyName,
+        address indexed _collateralToken,
+        uint256         time
+    );
     // event NewConditionalToken(address indexed contractAddress, uint256 _time);
 
     //TODO: add list of markets and currencies
@@ -29,6 +37,9 @@ contract MarketFactory is Ownable, Chainlink{
     mapping(string => address) public colleteralCurrencies;
 
     //Variables
+    address[] public marketList;
+    string[] public colleteralCurrenciesList;
+
     //TODO: maybe the variables should be private
     address public baseMarket;
     address public baseConditionalToken;
@@ -123,6 +134,8 @@ contract MarketFactory is Ownable, Chainlink{
         _market.finalize();
 
         markets[_marketAddress] = true;
+        marketList.push(_marketAddress);
+
         emit Created(_marketAddress, _feedCurrencyPair, _collateralCurrency, now, _duration);
 
         return _marketAddress;
@@ -139,6 +152,38 @@ contract MarketFactory is Ownable, Chainlink{
     function isMarket(address _market) public view returns (bool) {
         return markets[_market];
     }
+
+    function setCollateralCurrency(
+        string memory _currencyName,
+        address _currencyToken
+    ) public onlyOwner {
+        if (_currencyToken != address(0)) {
+            // If it's going to add a new currency
+            // Save the _currencyName to colleteralCurrenciesList if it isn't there
+            if (colleteralCurrencies[_currencyName] == address(0)) {
+                colleteralCurrenciesList.push(_currencyName);
+            }
+            // Add the address with the pair
+            colleteralCurrencies[_currencyName] = _currencyToken;
+        } else {
+            // If it's going to delete the currency
+            // Check that the currency is exists
+            require(colleteralCurrencies[_currencyName] != address(0), "There isn't this currency in the list of colleteralCurrencies");
+            // Find and remove the curency
+            for (uint8 i = 0; i < colleteralCurrenciesList.length; i++) {
+                if (keccak256(abi.encodePacked(colleteralCurrenciesList[i])) == keccak256(abi.encodePacked(_currencyName))) {
+                    // Shift the last element to index of the deleted pair
+                    colleteralCurrenciesList[i] = colleteralCurrenciesList[colleteralCurrenciesList.length - 1];
+                    colleteralCurrenciesList.pop();
+                    break;
+                }
+            }
+            // Clear the address of the pair
+            colleteralCurrencies[_currencyName] = address(0);
+        }
+        emit SetCurrency(_currencyName, _currencyToken, now);
+    }
+
 
     function cloneMarket(
         ERC20 _collateralToken,
