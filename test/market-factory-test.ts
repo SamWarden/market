@@ -1,22 +1,52 @@
 import { ethers } from "hardhat";
 import { Signer, ContractFactory, Contract } from "ethers";
-import { expect } from "chai";
+import chai from "chai";
+// import chaiAsPromised from "chai-as-promised";
+import { solidity } from "ethereum-waffle";
 import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import type { TransactionResponse, TransactionReceipt, Log } from "@ethersproject/abstract-provider";
+import type {
+  MarketFactory__factory,
+  Market__factory,
+  TToken__factory,
+  ConditionalToken__factory,
+} from "../typechain";
 
+// chai.use(chaiAsPromised);
+chai.use(solidity);
+const { expect } = chai;
+
+interface Event extends Log{
+  event: string;
+  args: Array<any>;
+}
+
+interface TransactionReceiptWithEvents extends TransactionReceipt{
+  events?: Array<Event>;
+}
+function function_name(argument: Contract) {
+  // body...
+}
 describe("MarketFactory", async () => {
   console.log("start");
   let accounts: SignerWithAddress[];
+  let MarketFactory: MarketFactory__factory;
+  let Market: Market__factory;
+  let TToken: TToken__factory;
+  let ConditionalToken: ConditionalToken__factory;
 
   beforeEach(async () => {
+    // Get factories of contracts
+    MarketFactory = await ethers.getContractFactory("MarketFactory") as MarketFactory__factory;
+    Market = await ethers.getContractFactory("Market") as Market__factory;
+    TToken = await ethers.getContractFactory("TToken") as TToken__factory;
+    ConditionalToken = await ethers.getContractFactory("ConditionalToken") as ConditionalToken__factory;
+
     // Get list of signers
     accounts = await ethers.getSigners();
   });
 
   it("test_deploy", async () => {
-    // Get factories of contracts
-    const MarketFactory: ContractFactory = await ethers.getContractFactory("MarketFactory");
-    const Market: ContractFactory = await ethers.getContractFactory("Market");
-    const TToken: ContractFactory = await ethers.getContractFactory("TToken");
 
     // Get account what will call methods
     const signer: SignerWithAddress = accounts[0];
@@ -27,16 +57,17 @@ describe("MarketFactory", async () => {
     const duration: number = 10000;
 
     // Deploy DAI contract
-    const dai: Contract = await TToken.deploy("DAI", "DAI", 18);
+    const dai = await TToken.deploy("DAI", "DAI", 18);
     await dai.deployed();
 
     // Deploy the MarketFactory contract
-    const marketFactory: Contract = await MarketFactory.deploy(dai.address);
+    const marketFactory = await MarketFactory.deploy(dai.address);
     await marketFactory.deployed();
     // Load contract of baseMarket
-    const market: Contract = Market.attach(await marketFactory.baseMarket());
+    const market = Market.attach(await marketFactory.baseMarket());
+
     // Listen events from LOG_CALL
-    market.on(await market.filters.LOG_CALL(), (res) => {console.log(res)});
+    // market.on(await market.filters.LOG_CALL(), (res) => {console.log(res)});
 
     // Mint tokens to the account
     await dai.mint(signer.address, ethers.utils.parseEther(collateralBalance));
@@ -46,11 +77,18 @@ describe("MarketFactory", async () => {
     // Log addresses
     console.log("Signer_address: " + signer.address);
     console.log("MarketFactory_address: " + marketFactory.address);
-    console.log("MarketFactory_hash: " + marketFactory.deployTransaction.hash);
     console.log("Market_address: " + market.address);
-    console.log("Market_owner: " + await market.owner());
 
     // Create market
-    await marketFactory.create("DAI", "ETH/USD", duration, ethers.utils.parseEther(collateralBalance));
+    let createResult: TransactionResponse = await marketFactory.create("DAI", "ETH/USD", duration, ethers.utils.parseEther(collateralBalance));
+    expect(createResult).to.emit(marketFactory, 'Created').withArgs(address, "ETH/USD", "DAI", now, duration);
+    // let txReceipt: TransactionReceiptWithEvents = await tx.wait();
+    // if (txReceipt.events === undefined) {
+    //   throw Error("There isn't `events` in the `txReceipt`");
+    // }
+
+    // for (let event of txReceipt.events.filter((event: Event) => event.event == "Created")) {
+    //   console.log(event.args);
+    // }
   });
 });
