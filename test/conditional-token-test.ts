@@ -43,7 +43,10 @@ describe("ConditionalToken", async () => {
   });
 
   it("test_events_signature", async () => {
-    expect(ConditionalToken.interface.events).to.include.all.keys("Approval(address,address,uint256)", "Transfer(address,address,uint256)");
+    expect(ConditionalToken.interface.events).to.include.all.keys(
+      "Approval(address,address,uint256)", "Transfer(address,address,uint256)",
+      "Created(string,string,uint8,uint256)",
+    );
   });
 
   it("test_deploy", async () => {
