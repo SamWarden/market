@@ -10,12 +10,9 @@ import "./ConditionalToken.sol";
 import "./MarketFactory.sol";
 
 contract Market is BPool {
-    using SafeMath for uint256;
-    using SafeMath for uint8;
-
     event Closed(
         uint256 _time,
-        int256 finalPrice,
+        int256  finalPrice,
         Results result,
         address winningToken
     );
@@ -30,33 +27,41 @@ contract Market is BPool {
         uint256         _time
     );
 
-    enum Stages {Created, Open, Closed}
+    enum Stages {None, Base, Open, Closed}
     enum Results {Unknown, Bull, Bear, Draw}
 
-    Results result = Results.Unknown;
-    Stages stage = Stages.Created;
+    //TODO: remove default values
+    Results public result;
+    Stages  public stage;
 
-    address chainlinkPriceFeed;
-    string collateralCurrency;
-    string feedCurrencyPair;
+    address private chainlinkPriceFeed;
+    string  public collateralCurrency;
+    string  public feedCurrencyPair;
 
-    int256 initialPrice;
-    int256 finalPrice;
-    address winningToken;
+    int256  public initialPrice;
+    int256  public finalPrice;
+    address public winningToken;
 
-    uint256 created;
-    uint256 duration;
+    uint256 public created;
+    uint256 public duration;
 
-    uint256 totalDeposit;
-    uint256 totalRedemption;
+    uint256 private totalDeposit;
+    uint256 private totalRedemption;
+
+    //TODO: maybe it should depends on decimals of the collateral token
+    uint    public protocolFee;
 
     ERC20 collateralToken;
     ConditionalToken bearToken;
     ConditionalToken bullToken;
 
-    modifier atStage(Stages _stage) {
-        require(stage == _stage, "Function called in wrong stage");
-        _;
+    // modifier atStage(Stages _stage) {
+    //     require(stage == _stage, "Function called in wrong stage");
+    //     _;
+    // }
+
+    constructor() public {
+        stage = Stages.Base;
     }
 
     //Call the method after clone Market
@@ -67,14 +72,15 @@ contract Market is BPool {
         uint256 _duration,
         string memory _collateralCurrency,
         string memory _feedCurrencyPair,
-        address _chainlinkPriceFeed
+        address _chainlinkPriceFeed,
+        uint _protocolFee
     )
         external
         _logs_
         //_lock_
-        atStage(Stages.Created)
     {
-        OwnableClone.cloneConstructor();
+        require(stage == Stages.None, "Function called in wrong stage");
+        BPool.cloneConstructor();
         //Get initial price from chainlink
         // int256 _initialPrice =
         //     MarketFactory(owner()).getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
@@ -92,32 +98,40 @@ contract Market is BPool {
         collateralCurrency = _collateralCurrency;
         feedCurrencyPair = _feedCurrencyPair;
         chainlinkPriceFeed = _chainlinkPriceFeed;
-
+        protocolFee = _protocolFee;
         stage = Stages.Open;
     }
 
-    function getStage()
-        public view
-        _viewlock_
-        returns (Stages)
-    {
-        return stage;
-    }
+    // function open()
+    //     external
+    //     _logs_
+    //     _lock_
+    //     onlyOwner
+    // {
+    //     require(stage == Clones.Created, "Function called in wrong stage");
+    //     require(_tokens.length >= MIN_BOUND_TOKENS, "ERR_MIN_TOKENS");
+
+    //     stage = Stages.Open;
+    //     _publicSwap = true;
+
+    //     _mintPoolShare(INIT_POOL_SUPPLY);
+    //     _pushPoolShare(msg.sender, INIT_POOL_SUPPLY);
+    // }
 
     function close()
         public
         _logs_
         _lock_
-        atStage(Stages.Open)
     {
+        require(stage == Stages.Open, "Function called in wrong stage");
         // now > created + duration
         require(
-            now > created.add(duration),
+            now > badd(created, duration),
             "Market closing time hasn't yet arrived"
         );
 
         //TODO: config the method of Chainlink
-        finalPrice = MarketFactory(owner()).getHistoricalPriceByTimestamp(AggregatorV3Interface(chainlinkPriceFeed), created.add(duration));
+        finalPrice = MarketFactory(owner()).getHistoricalPriceByTimestamp(AggregatorV3Interface(chainlinkPriceFeed), badd(created, duration));
 
         //TODO: maybe should move it to the method?
         require(finalPrice > 0, "Chainlink error");
@@ -144,8 +158,8 @@ contract Market is BPool {
         external
         _logs_
         _lock_
-        atStage(Stages.Open)
     {
+        require(stage == Stages.Open, "Function called in wrong stage");
         require(_amount > 0, "Invalid amount");
 
         //Get collateral token from sender
@@ -156,8 +170,9 @@ contract Market is BPool {
         bearToken.mint(msg.sender, _amount);
 
         //Increase total deposited collateral
-        totalDeposit = totalDeposit.add(_amount);
+        totalDeposit = badd(totalDeposit, _amount);
 
+        //TODO: use the event
         // emit Buy(msg.sender, _amount, now);
     }
 
@@ -165,10 +180,11 @@ contract Market is BPool {
         external
         _logs_
         _lock_
-        atStage(Stages.Closed)
     {
+        require(stage == Stages.Closed, "Function called in wrong stage");
+        //TODO: use the protocol fee
         require(_amount > 0, "Invalid amount");
-        require(totalDeposit >= totalRedemption.add(_amount), "No collateral left");
+        require(totalDeposit >= badd(totalRedemption, _amount), "No collateral left");
 
         if (result != Results.Draw) {
             //If there is winner
@@ -180,24 +196,27 @@ contract Market is BPool {
             // Get allowance of conditional tokens from the sender
             uint256 _bullAllowance = bullToken.allowance(msg.sender, address(this));
             uint256 _bearAllowance = bearToken.allowance(msg.sender, address(this));
-            require(_bullAllowance + _bearAllowance < _amount * 2, "Total allowance of conditonal tokens is lower than the given amount");
+            require(badd(_bullAllowance, _bearAllowance) < bmul(_amount, 2), "Total allowance of conditonal tokens is lower than the given amount");
             // ratio = totalAllowance / conditionalAmount
-            uint256 ratio = (_bullAllowance + _bearAllowance) / (_amount * 2);
+            uint256 ratio = bdiv(badd(_bullAllowance, _bearAllowance), bmul(_amount, 2));
 
             // if not 0, burn the tokens
             if (_bullAllowance > 0) {
-               bullToken.burnFrom(msg.sender, _bullAllowance / ratio);
+               bullToken.burnFrom(msg.sender, bdiv(_bullAllowance, ratio));
             }
             if (_bearAllowance > 0) {
-                bearToken.burnFrom(msg.sender, _bearAllowance / ratio);
+                bearToken.burnFrom(msg.sender, bdiv(_bearAllowance, ratio));
             }
         }
-        //Send collateral tokens to sender
-        collateralToken.transfer(msg.sender, _amount);
+        uint _protocolFee = bmul(_amount, protocolFee);
+
+        collateralToken.transfer(msg.sender, bsub(_amount, _protocolFee));
+        collateralToken.transfer(_factory, _protocolFee);
 
         //Increase total redemed collateral
-        totalRedemption = totalRedemption.add(_amount);
+        totalRedemption = badd(totalRedemption, _amount);
 
+        //TODO: use the event
         // emit Redeem(_marketID, now);
     }
 }

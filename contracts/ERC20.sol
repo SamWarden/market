@@ -39,6 +39,7 @@ contract ERC20 is Context, IERC20 {
 
     uint256 private _totalSupply;
 
+    // Make it internal instead of private
     string internal _name;
     string internal _symbol;
     uint8 internal _decimals;
