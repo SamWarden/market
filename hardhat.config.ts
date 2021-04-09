@@ -60,8 +60,12 @@ const config: HardhatUserConfig = {
   //   apiKey: ETHERSCAN_API_KEY,
   // },
   mocha: {
-    timeout: 20000000
-  }
+    timeout: 20000000,
+  },
+  paths: {
+    sources: "./contracts/",
+    tests: "./test/",
+  },
 };
 
 export default config;
