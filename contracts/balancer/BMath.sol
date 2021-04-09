@@ -32,7 +32,7 @@ contract BMath is BBronze, BConst, BNum {
         uint tokenWeightOut,
         uint swapFee
     )
-        public pure
+        internal pure
         returns (uint spotPrice)
     {
         uint numer = bdiv(tokenBalanceIn, tokenWeightIn);
@@ -60,7 +60,7 @@ contract BMath is BBronze, BConst, BNum {
         uint tokenAmountIn,
         uint swapFee
     )
-        public pure
+        internal pure
         returns (uint tokenAmountOut)
     {
         uint weightRatio = bdiv(tokenWeightIn, tokenWeightOut);
@@ -91,7 +91,7 @@ contract BMath is BBronze, BConst, BNum {
         uint tokenAmountOut,
         uint swapFee
     )
-        public pure
+        internal pure
         returns (uint tokenAmountIn)
     {
         uint weightRatio = bdiv(tokenWeightOut, tokenWeightIn);
@@ -122,7 +122,7 @@ contract BMath is BBronze, BConst, BNum {
         uint tokenAmountIn,
         uint swapFee
     )
-        public pure
+        internal pure
         returns (uint poolAmountOut)
     {
         // Charge the trading fee for the proportion of tokenAi
@@ -161,7 +161,7 @@ contract BMath is BBronze, BConst, BNum {
         uint poolAmountOut,
         uint swapFee
     )
-        public pure
+        internal pure
         returns (uint tokenAmountIn)
     {
         uint normalizedWeight = bdiv(tokenWeightIn, totalWeight);
@@ -200,7 +200,7 @@ contract BMath is BBronze, BConst, BNum {
         uint poolAmountIn,
         uint swapFee
     )
-        public pure
+        internal pure
         returns (uint tokenAmountOut)
     {
         uint normalizedWeight = bdiv(tokenWeightOut, totalWeight);
@@ -242,7 +242,7 @@ contract BMath is BBronze, BConst, BNum {
         uint tokenAmountOut,
         uint swapFee
     )
-        public pure
+        internal pure
         returns (uint poolAmountIn)
     {
 
