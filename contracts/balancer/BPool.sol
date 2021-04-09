@@ -71,7 +71,7 @@ contract BPool is BBronze, BToken, BMath, OwnableClone {
 
     bool private _mutex;
 
-    address private _factory;    // BFactory address to push token exitFee to
+    address internal _factory;    // BFactory address to push token exitFee to
     bool private _publicSwap; // true if PUBLIC can call SWAP functions
 
     // `setSwapFee` and `finalize` require CONTROL
@@ -80,88 +80,89 @@ contract BPool is BBronze, BToken, BMath, OwnableClone {
     bool private _finalized;
 
     address[] private _tokens;
-    mapping(address=>Record) private  _records;
+    mapping(address=>Record) private _records;
     uint private _totalWeight;
 
-    constructor() public {
+    function cloneConstructor() internal override virtual {
+        OwnableClone.cloneConstructor();
         _factory = msg.sender;
         _swapFee = MIN_FEE;
         _publicSwap = false;
         _finalized = false;
     }
 
-    function isPublicSwap()
-        external view
-        returns (bool)
-    {
-        return _publicSwap;
-    }
+    // function isPublicSwap()
+    //     external view
+    //     returns (bool)
+    // {
+    //     return _publicSwap;
+    // }
 
-    function isFinalized()
-        external view
-        returns (bool)
-    {
-        return _finalized;
-    }
+    // function isFinalized()
+    //     external view
+    //     returns (bool)
+    // {
+    //     return _finalized;
+    // }
 
-    function isBound(address t)
-        external view
-        returns (bool)
-    {
-        return _records[t].bound;
-    }
+    // function isBound(address t)
+    //     external view
+    //     returns (bool)
+    // {
+    //     return _records[t].bound;
+    // }
 
-    function getNumTokens()
-        external view
-        returns (uint) 
-    {
-        return _tokens.length;
-    }
+    // function getNumTokens()
+    //     external view
+    //     returns (uint) 
+    // {
+    //     return _tokens.length;
+    // }
 
-    function getCurrentTokens()
-        external view _viewlock_
-        returns (address[] memory tokens)
-    {
-        return _tokens;
-    }
+    // function getCurrentTokens()
+    //     external view _viewlock_
+    //     returns (address[] memory tokens)
+    // {
+    //     return _tokens;
+    // }
 
-    function getFinalTokens()
-        external view
-        _viewlock_
-        returns (address[] memory tokens)
-    {
-        require(_finalized, "ERR_NOT_FINALIZED");
-        return _tokens;
-    }
+    // function getFinalTokens()
+    //     external view
+    //     _viewlock_
+    //     returns (address[] memory tokens)
+    // {
+    //     require(_finalized, "ERR_NOT_FINALIZED");
+    //     return _tokens;
+    // }
 
-    function getDenormalizedWeight(address token)
-        external view
-        _viewlock_
-        returns (uint)
-    {
+    // function getDenormalizedWeight(address token)
+    //     external view
+    //     _viewlock_
+    //     returns (uint)
+    // {
 
-        require(_records[token].bound, "ERR_NOT_BOUND");
-        return _records[token].denorm;
-    }
+    //     require(_records[token].bound, "ERR_NOT_BOUND");
+    //     return _records[token].denorm;
+    // }
 
-    function getTotalDenormalizedWeight()
-        external view
-        _viewlock_
-        returns (uint)
-    {
-        return _totalWeight;
-    }
+    // function getTotalDenormalizedWeight()
+    //     external view
+    //     _viewlock_
+    //     returns (uint)
+    // {
+    //     return _totalWeight;
+    // }
 
-    function getNormalizedWeight(address token)
-        external view
-        _viewlock_
-        returns (uint)
-    {
+    // function getNormalizedWeight(address token)
+    //     external view
+    //     _viewlock_
+    //     returns (uint)
+    // {
 
-        require(_records[token].bound, "ERR_NOT_BOUND");
-        uint denorm = _records[token].denorm;
-        return bdiv(denorm, _totalWeight);
-    }
+    //     require(_records[token].bound, "ERR_NOT_BOUND");
+    //     uint denorm = _records[token].denorm;
+    //     return bdiv(denorm, _totalWeight);
+    // }
 
     function getBalance(address token)
         external view
@@ -278,37 +279,37 @@ contract BPool is BBronze, BToken, BMath, OwnableClone {
         }
     }
 
-    function unbind(address token)
-        external
-        _logs_
-        _lock_
-        onlyOwner
-    {
-        require(_records[token].bound, "ERR_NOT_BOUND");
-        require(!_finalized, "ERR_IS_FINALIZED");
+    // function unbind(address token)
+    //     external
+    //     _logs_
+    //     _lock_
+    //     onlyOwner
+    // {
+    //     require(_records[token].bound, "ERR_NOT_BOUND");
+    //     require(!_finalized, "ERR_IS_FINALIZED");
 
-        uint tokenBalance = _records[token].balance;
-        uint tokenExitFee = bmul(tokenBalance, EXIT_FEE);
+    //     uint tokenBalance = _records[token].balance;
+    //     uint tokenExitFee = bmul(tokenBalance, EXIT_FEE);
 
-        _totalWeight = bsub(_totalWeight, _records[token].denorm);
+    //     _totalWeight = bsub(_totalWeight, _records[token].denorm);
 
-        // Swap the token-to-unbind with the last token,
-        // then delete the last token
-        uint index = _records[token].index;
-        uint last = _tokens.length - 1;
-        _tokens[index] = _tokens[last];
-        _records[_tokens[index]].index = index;
-        _tokens.pop();
-        _records[token] = Record({
-            bound: false,
-            index: 0,
-            denorm: 0,
-            balance: 0
-        });
+    //     // Swap the token-to-unbind with the last token,
+    //     // then delete the last token
+    //     uint index = _records[token].index;
+    //     uint last = _tokens.length - 1;
+    //     _tokens[index] = _tokens[last];
+    //     _records[_tokens[index]].index = index;
+    //     _tokens.pop();
+    //     _records[token] = Record({
+    //         bound: false,
+    //         index: 0,
+    //         denorm: 0,
+    //         balance: 0
+    //     });
 
-        _pushUnderlying(token, msg.sender, bsub(tokenBalance, tokenExitFee));
-        _pushUnderlying(token, _factory, tokenExitFee);
-    }
+    //     _pushUnderlying(token, msg.sender, bsub(tokenBalance, tokenExitFee));
+    //     _pushUnderlying(token, _factory, tokenExitFee);
+    // }
 
     // Absorb any tokens that have been sent to this contract into the pool
     // function gulp(address token)
