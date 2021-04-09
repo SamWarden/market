@@ -4,10 +4,11 @@ pragma solidity ^0.6.0;
 // import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 // import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
+import "@chainlink/contracts/src/v0.6/ChainlinkClient.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./ConditionalToken.sol";
 
-contract Chainlink is Ownable {
+contract ChainlinkData is Ownable, ChainlinkClient {
     // using SafeMath for uint256, uint8;
     event SetFeed(string indexed currencyPair, address indexed chainlinkFeed, uint256 time);
 
@@ -16,12 +17,52 @@ contract Chainlink is Ownable {
 
     AggregatorV3Interface internal priceFeed;
 
+    address private oracle;
+    bytes32 private jobId;
+    uint256 private fee;
+    int256 public price;
+    uint8 public called;
+
     constructor() public {
         //TODO: Add moreoracles
         //Network: Kovan Aggregator: ETH/USD
         feeds[
             "ETH/USD"
         ] = 0x9326BFA02ADD2366b30bacB125260Af641031331;
+
+        setPublicChainlinkToken();
+        // oracle = 0x72f3dFf4CD17816604dd2df6C2741e739484CA62;
+        // jobId = "bfc49c95584c4b10b61fc88bb2023d68";
+        // XdFeed
+        oracle = 0x56dd6586DB0D08c6Ce7B2f2805af28616E082455;
+        jobId = "0391a670ba8e4a2f80750acfe65b0c89";
+        fee = 0.1 * 10 ** 18; // 0.1 LINK
+    }
+
+
+    function requestPrice(uint256 _timeout) public returns (bytes32 requestId) {
+        Chainlink.Request memory request = buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
+        // request.add("path", "price");
+        request.add("base", "BTC/USDT:CXDXF");
+        request.addUint("until", now + _timeout);
+        
+        return sendChainlinkRequestTo(oracle, request, fee);
+    }
+    
+    /**
+     * Receive the response in the form of int256
+     */ 
+    function fulfill(bytes32 _requestId, int256 _price) public recordChainlinkFulfillment(_requestId) returns (int256)
+    {
+        price = _price;
+        called++;
+        // require(
+        //     requestToMarketID[_requestId] > 0,
+        //     "Invalid request"
+        // );
+        
+        // markets[requestToMarketID[_requestId]].initialPrice = _price;
+        // markets[requestToMarketID[_requestId]].status = Status.Running;
     }
 
     function setFeed(
@@ -55,6 +96,12 @@ contract Chainlink is Ownable {
         emit SetFeed(_currencyPair, _chainlinkFeed, now);
     }
 
+    function setChainlink(address _oracle, bytes32 _jobId, uint256 _fee) public onlyOwner {
+        oracle = _oracle;
+        jobId = _jobId;
+        fee = _fee;
+    }
+
     /**
      * Returns the latest price
      */
@@ -83,19 +130,12 @@ contract Chainlink is Ownable {
         }
         return _price;
     }
-    function getLatestPrice(AggregatorV3Interface _feed)
+    function getLatestPrice(address _feed)
         public
         view
-        returns (int256)
+        returns (uint80, int256, uint256, uint256, uint80)
     {
-        (
-            uint80 _roundID,
-            int256 _price,
-            uint256 _startedAt,
-            uint256 _timeStamp,
-            uint80 _answeredInRound
-        ) = _feed.latestRoundData();
-        return _price;
+        return AggregatorV3Interface(_feed).latestRoundData();
     }
 
     /**
@@ -109,20 +149,28 @@ contract Chainlink is Ownable {
      *
      * @dev A timestamp with zero value means the round is not complete and should not be used.
      */
-    function getHistoricalPrice(AggregatorV3Interface _feed, uint80 _roundId)
+    
+    function getHistoricalPrice(address _feed, uint80 _roundId)
         public
         view
-        returns (int256)
+        returns (uint80, int256, uint256, uint256, uint80)
     {
-        (
-            uint80 _roundID,
-            int256 _price,
-            uint256 _startedAt,
-            uint256 _timeStamp,
-            uint80 _answeredInRound
-        ) = _feed.getRoundData(_roundId);
-        require(_timeStamp > 0, "Round not complete");
-        return _price;
+        return AggregatorV3Interface(_feed).getRoundData(_roundId);
     }
 
+    // function getHistoricalPrice(AggregatorV3Interface _feed, uint80 _roundId)
+    //     public
+    //     view
+    //     returns (int256)
+    // {
+    //     (
+    //         uint80 _roundID,
+    //         int256 _price,
+    //         uint256 _startedAt,
+    //         uint256 _timeStamp,
+    //         uint80 _answeredInRound
+    //     ) = _feed.getRoundData(_roundId);
+    //     require(_timeStamp > 0, "Round not complete");
+    //     return _price;
+    // }
 }
