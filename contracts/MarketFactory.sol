@@ -13,9 +13,6 @@ import "./ChainlinkData.sol";
 
 //TODO: what if to inherit the BFactory?
 contract MarketFactory is Ownable, ChainlinkData{
-    using SafeMath for uint256;
-    using SafeMath for uint8;
-
     //TODO: add more info to events
     event Created(
         address indexed market,
@@ -44,6 +41,7 @@ contract MarketFactory is Ownable, ChainlinkData{
     address private baseMarket;
     address private baseConditionalToken;
     uint public protocolFee;
+    uint public swapFee;
 
     //Constants
     // uint256 public constant CONDITIONAL_TOKEN_WEIGHT = (10).mul(BConst.BONE);
@@ -89,12 +87,6 @@ contract MarketFactory is Ownable, ChainlinkData{
         //Estamate balance tokens
         uint256 _initialBalance = _approvedBalance.div(2);
 
-        //Calculate swap fee
-        //TODO: think what if _collateralDecimals is small
-        //TODO: test if possible to set BPool.BONE as 10**_collateralDecimals
-        //TODO: correct the calculation
-        // uint256 _swapFee = calcSwapFee(_collateralDecimals);
-
         //Contract factory (clone) for two ERC20 tokens
         ConditionalToken _bullToken = cloneConditionalToken("Bull", "Bull", _collateralDecimals);
         ConditionalToken _bearToken = cloneConditionalToken("Bear", "Bear", _collateralDecimals);
@@ -112,8 +104,7 @@ contract MarketFactory is Ownable, ChainlinkData{
         address _marketAddress = address(_market);
 
         //Set the swap fee
-        // _market.setSwapFee(_swapFee);
-        _market.setSwapFee(calcSwapFee(_collateralDecimals));
+        _market.setSwapFee(swapFee);
 
         //Add conditional and collateral tokens to the pool with liqudity
         addConditionalToken(_marketAddress, _bullToken, _initialBalance);
@@ -142,14 +133,6 @@ contract MarketFactory is Ownable, ChainlinkData{
         return _marketAddress;
     }
 
-    function calcSwapFee(uint256 _decimals) public pure returns (uint256) {
-        //TODO: make SafeMath.pow here
-        // return (10 ** _decimals).div(1000).mul(3); // 0.3%
-        // 10 ** _decimals / 1000 * 3
-        // return 10**(_decimals - 3) * 3; // 0.3%
-        return 10**18 / 10 - 1; // 0.3%
-    }
-
     function isMarket(address _market) public view returns (bool) {
         return markets[_market];
     }
@@ -163,6 +146,17 @@ contract MarketFactory is Ownable, ChainlinkData{
         // require(_protocolFee >= MIN_FEE, "ERR_MIN_FEE");
         // require(_protocolFee <= MAX_FEE, "ERR_MAX_FEE");
         protocolFee = _protocolFee;
+    }
+
+    function setSwapFee(uint _swapFee)
+        external
+        onlyOwner
+    {
+        // require(!_finalized, "ERR_IS_FINALIZED");
+        // //TODO: is there need these requrements?
+        require(_swapFee >= Market.MIN_FEE, "ERR_MIN_FEE");
+        require(_swapFee <= Market.MAX_FEE, "ERR_MAX_FEE");
+        swapFee = _swapFee;
     }
 
     function collect(address _token)
