@@ -13,7 +13,12 @@ contract ConditionalToken is ERC20Burnable {
         uint8           decimals,
         uint256         time
     );
+
     bool private _created;
+    //TODO: add lock to base contract with constructor
+    constructor() public {
+       _created = true;
+    }
 
     function cloneConstructor(string memory name_, string memory symbol_, uint8 decimals_) public {
         require(!_created, "ConditionalToken: this token is already created");
