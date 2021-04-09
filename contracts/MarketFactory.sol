@@ -8,11 +8,11 @@ import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "./ERC20.sol";
 import "./ConditionalToken.sol";
 import "./Market.sol";
-import "./Chainlink.sol";
+import "./ChainlinkData.sol";
 // import "./balancer/BConst.sol";
 
 //TODO: what if to inherit the BFactory?
-contract MarketFactory is Ownable, Chainlink{
+contract MarketFactory is Ownable, ChainlinkData{
     using SafeMath for uint256;
     using SafeMath for uint8;
 
@@ -41,8 +41,9 @@ contract MarketFactory is Ownable, Chainlink{
     string[] public colleteralCurrenciesList;
 
     //TODO: maybe the variables should be private
-    address public baseMarket;
-    address public baseConditionalToken;
+    address private baseMarket;
+    address private baseConditionalToken;
+    uint public protocolFee;
 
     //Constants
     // uint256 public constant CONDITIONAL_TOKEN_WEIGHT = (10).mul(BConst.BONE);
@@ -153,6 +154,25 @@ contract MarketFactory is Ownable, Chainlink{
         return markets[_market];
     }
 
+    function setProtocolFee(uint _protocolFee)
+        external
+        onlyOwner
+    {
+        // require(!_finalized, "ERR_IS_FINALIZED");
+        // //TODO: is there need these requrements?
+        // require(_protocolFee >= MIN_FEE, "ERR_MIN_FEE");
+        // require(_protocolFee <= MAX_FEE, "ERR_MAX_FEE");
+        protocolFee = _protocolFee;
+    }
+
+    function collect(address _token)
+        external
+        onlyOwner
+    {
+        //Send all tokens to the owner
+        require(IERC20(_token).transfer(msg.sender, IERC20(_token).balanceOf(address(this))), "ERR_ERC20_FAILED");
+    }
+
     function setCollateralCurrency(
         string memory _currencyName,
         address _currencyToken
@@ -208,7 +228,8 @@ contract MarketFactory is Ownable, Chainlink{
             _duration,
             _collateralCurrency,
             _feedCurrencyPair,
-            _chainlinkPriceFeed
+            _chainlinkPriceFeed,
+            protocolFee
         );
         return _market;
     }
