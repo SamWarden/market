@@ -8,11 +8,12 @@ import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "./ERC20.sol";
 import "./ConditionalToken.sol";
 import "./Market.sol";
+import "./balancer/BConst.sol";
 import "./ChainlinkData.sol";
 // import "./balancer/BConst.sol";
 
 //TODO: what if to inherit the BFactory?
-contract MarketFactory is Ownable, ChainlinkData{
+contract MarketFactory is Ownable, ChainlinkData, BConst {
     //TODO: add more info to events
     event Created(
         address indexed market,
@@ -41,16 +42,16 @@ contract MarketFactory is Ownable, ChainlinkData{
     address private baseMarket;
     address private baseConditionalToken;
     uint public protocolFee;
-    uint public swapFee;
+    uint public swapFee = MIN_FEE;
 
     //Constants
     // uint256 public constant CONDITIONAL_TOKEN_WEIGHT = (10).mul(BConst.BONE);
     uint256 public constant CONDITIONAL_TOKEN_WEIGHT = 10 * 10**18;
     uint256 public constant COLLATERAL_TOKEN_WEIGHT  = CONDITIONAL_TOKEN_WEIGHT * 2;
 
-    constructor(address _collateralToken) public {
-        baseMarket = address(new Market());
-        baseConditionalToken = address(new ConditionalToken());
+    constructor(address _baseMarket, address _baseConditionalToken, address _collateralToken) public {
+        baseMarket = _baseMarket;
+        baseConditionalToken = _baseConditionalToken;
 
         colleteralCurrencies["DAI"] = _collateralToken; //0x9326BFA02ADD2366b30bacB125260Af641031331; //!WRONG ADDRESS
     }
@@ -85,7 +86,7 @@ contract MarketFactory is Ownable, ChainlinkData{
         _collateralToken.transferFrom(msg.sender, address(this), _approvedBalance);
 
         //Estamate balance tokens
-        uint256 _initialBalance = _approvedBalance.div(2);
+        uint256 _initialBalance = SafeMath.div(_approvedBalance, 2);
 
         //Contract factory (clone) for two ERC20 tokens
         ConditionalToken _bullToken = cloneConditionalToken("Bull", "Bull", _collateralDecimals);
@@ -154,8 +155,8 @@ contract MarketFactory is Ownable, ChainlinkData{
     {
         // require(!_finalized, "ERR_IS_FINALIZED");
         // //TODO: is there need these requrements?
-        require(_swapFee >= Market.MIN_FEE, "ERR_MIN_FEE");
-        require(_swapFee <= Market.MAX_FEE, "ERR_MAX_FEE");
+        require(_swapFee >= MIN_FEE, "ERR_MIN_FEE");
+        require(_swapFee <= MAX_FEE, "ERR_MAX_FEE");
         swapFee = _swapFee;
     }
 
@@ -197,7 +198,6 @@ contract MarketFactory is Ownable, ChainlinkData{
         }
         emit SetCurrency(_currencyName, _currencyToken, now);
     }
-
 
     function cloneMarket(
         ERC20 _collateralToken,
