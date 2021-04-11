@@ -23,9 +23,9 @@ abstract contract OwnableClone is Context {
     /**
      * @dev Initializes the contract setting the deployer as the initial owner.
      */
-    constructor () internal {
-        cloneConstructor();
-    }
+    // constructor () internal {
+    //     cloneConstructor();
+    // }
 
     function cloneConstructor () internal virtual {
         address msgSender = _msgSender();
