@@ -30,7 +30,7 @@ contract BConst is BBronze {
     uint internal constant MAX_TOTAL_WEIGHT  = BONE * 50;
     uint internal constant MIN_BALANCE       = BONE / 10**12;
 
-    uint internal constant INIT_POOL_SUPPLY  = BONE * 100;
+    uint public constant INIT_POOL_SUPPLY    = BONE * 100;
 
     uint internal constant MIN_BPOW_BASE     = 1 wei;
     uint internal constant MAX_BPOW_BASE     = (2 * BONE) - 1 wei;
