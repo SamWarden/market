@@ -8,12 +8,11 @@ import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "./ERC20.sol";
 import "./ConditionalToken.sol";
 import "./Market.sol";
-import "./balancer/BConst.sol";
 import "./ChainlinkData.sol";
 // import "./balancer/BConst.sol";
 
 //TODO: what if to inherit the BFactory?
-contract MarketFactory is Ownable, ChainlinkData, BConst {
+contract MarketFactory is Ownable, ChainlinkData {
     //TODO: add more info to events
     event Created(
         address indexed market,
@@ -42,7 +41,7 @@ contract MarketFactory is Ownable, ChainlinkData, BConst {
     address private baseMarket;
     address private baseConditionalToken;
     uint public protocolFee;
-    uint public swapFee = MIN_FEE;
+    uint public swapFee;
 
     //Constants
     // uint256 public constant CONDITIONAL_TOKEN_WEIGHT = (10).mul(BConst.BONE);
@@ -54,6 +53,8 @@ contract MarketFactory is Ownable, ChainlinkData, BConst {
         baseConditionalToken = _baseConditionalToken;
 
         colleteralCurrencies["DAI"] = _collateralToken; //0x9326BFA02ADD2366b30bacB125260Af641031331; //!WRONG ADDRESS
+
+        swapFee = Market(_baseMarket).MIN_FEE();
     }
 
     function create(
@@ -73,10 +74,10 @@ contract MarketFactory is Ownable, ChainlinkData, BConst {
             feeds[_feedCurrencyPair] != address(0),
             "Invalid currency pair"
         );
-        require(
-            _duration >= 600 seconds && _duration < 365 days,
-            "Invalid duration"
-        );
+        // require(
+        //     _duration >= 600 seconds && _duration < 365 days,
+        //     "Invalid duration"
+        // );
 
         //TODO: check if _collateralToken is a valid ERC20 contract
         ERC20 _collateralToken = ERC20(colleteralCurrencies[_collateralCurrency]);
@@ -119,12 +120,13 @@ contract MarketFactory is Ownable, ChainlinkData, BConst {
         //Mint the conditional tokens
         _market.buy(_initialBalance);
 
-        //Send bought conditional token to the sender
+        //Finalize the pool, get initial LP tokens and allow public swaps
+        _market.finalize();
+
+        //Send LP and bought conditional tokens to the sender
+        _market.transfer(msg.sender, _market.INIT_POOL_SUPPLY());
         _bullToken.transfer(msg.sender, _initialBalance);
         _bearToken.transfer(msg.sender, _initialBalance);
-
-        //Finalize the pool and allow public swaps
-        _market.finalize();
 
         markets[_marketAddress] = true;
         marketList.push(_marketAddress);
@@ -155,8 +157,8 @@ contract MarketFactory is Ownable, ChainlinkData, BConst {
     {
         // require(!_finalized, "ERR_IS_FINALIZED");
         // //TODO: is there need these requrements?
-        require(_swapFee >= MIN_FEE, "ERR_MIN_FEE");
-        require(_swapFee <= MAX_FEE, "ERR_MAX_FEE");
+        require(_swapFee >= Market(baseMarket).MIN_FEE(), "ERR_MIN_FEE");
+        require(_swapFee <= Market(baseMarket).MAX_FEE(), "ERR_MAX_FEE");
         swapFee = _swapFee;
     }
 
