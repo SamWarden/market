@@ -6,6 +6,8 @@ import { AddressZero } from "@ethersproject/constants";
 import { solidity } from "ethereum-waffle";
 import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import type { TransactionResponse, TransactionReceipt, Log } from "@ethersproject/abstract-provider";
+import { cloneContract } from "../src/clones";
+import type { TransactionReceiptWithEvents } from "../src/types";
 import type {
   TClones__factory, TClones as TClonesContract,
   ConditionalToken__factory, ConditionalToken as ConditionalTokenContract,
@@ -15,17 +17,7 @@ import type {
 chai.use(solidity);
 const { expect } = chai;
 
-interface Event extends Log{
-  event: string;
-  args: Array<any>;
-}
-
-interface TransactionReceiptWithEvents extends TransactionReceipt{
-  events?: Array<Event>;
-}
-
 describe("ConditionalToken", async () => {
-  console.log("start");
   let accounts: SignerWithAddress[];
   let owner: SignerWithAddress;
   let account: SignerWithAddress;
@@ -50,7 +42,8 @@ describe("ConditionalToken", async () => {
 
   it("test_events_signature", async () => {
     expect(ConditionalToken.interface.events).to.include.all.keys(
-      "Approval(address,address,uint256)", "Transfer(address,address,uint256)",
+      "Approval(address,address,uint256)",
+      "Transfer(address,address,uint256)",
       "Created(string,string,uint8,uint256)",
     );
   });
@@ -71,20 +64,14 @@ describe("ConditionalToken", async () => {
 
     it("test_call_clone_constructor", async () => {
       await expect(token.cloneConstructor("Token", "TOK", 18)).to.be.revertedWith("ConditionalToken: this token is already created");
-      const txResponse: TransactionResponse = await tclones.copy(token.address);
-      const txResponseWithEvent: TransactionReceiptWithEvents = await txResponse.wait();
-      const cloneAddress = txResponseWithEvent.events![0].args[0];
-      const clonedToken: ConditionalTokenContract = ConditionalToken.attach(cloneAddress);
+      const clonedToken: ConditionalTokenContract = await cloneContract(token.address, ConditionalToken, tclones);
       expect(await clonedToken.cloneConstructor("Token", "TOK", 18)).to.emit(clonedToken, "Created");
       await expect(clonedToken.cloneConstructor("Token", "TOK", 18)).to.be.revertedWith("ConditionalToken: this token is already created");
     });
     
     describe("initialized", async () => {
       beforeEach(async () => {
-        const txResponse: TransactionResponse = await tclones.copy(token.address);
-        const txResponseWithEvent: TransactionReceiptWithEvents = await txResponse.wait();
-        const cloneAddress = txResponseWithEvent.events![0].args[0];
-        token = ConditionalToken.attach(cloneAddress);
+        token = await cloneContract(token.address, ConditionalToken, tclones);
         accToken = await token.connect(account);
         await token.cloneConstructor("Token", "TOK", 18);
       });
