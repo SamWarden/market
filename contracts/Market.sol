@@ -18,13 +18,15 @@ contract Market is BPool {
     );
 
     event Buy(
-        uint256 indexed marketID,
-        uint256         _time
+        address indexed sender,
+        uint256 indexed amount,
+        uint256         time
     );
 
     event Redeem(
-        uint256 indexed marketID,
-        uint256         _time
+        address indexed sender,
+        uint256 indexed amount,
+        uint256         time
     );
 
     enum Stages {None, Base, Open, Closed}
@@ -51,9 +53,9 @@ contract Market is BPool {
     //TODO: maybe it should depends on decimals of the collateral token
     uint    public protocolFee;
 
-    ERC20 collateralToken;
-    ConditionalToken bearToken;
-    ConditionalToken bullToken;
+    ERC20   public collateralToken;
+    ConditionalToken public bullToken;
+    ConditionalToken public bearToken;
 
     // modifier atStage(Stages _stage) {
     //     require(stage == _stage, "Function called in wrong stage");
@@ -67,8 +69,8 @@ contract Market is BPool {
     //Call the method after clone Market
     function cloneConstructor(
         ERC20 _collateralToken,
-        ConditionalToken _bearToken,
         ConditionalToken _bullToken,
+        ConditionalToken _bearToken,
         uint256 _duration,
         string memory _collateralCurrency,
         string memory _feedCurrencyPair,
@@ -79,13 +81,13 @@ contract Market is BPool {
         _logs_
         //_lock_
     {
-        require(stage == Stages.None, "Function called in wrong stage");
+        require(stage == Stages.None, "Market: This Market is already initialized");
         BPool.cloneConstructor();
         //Get initial price from chainlink
-        // int256 _initialPrice =
+        int256 _initialPrice = 1;
         //     MarketFactory(owner()).getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
 
-        // require(_initialPrice > 0, "Chainlink error");
+        require(_initialPrice > 0, "Chainlink error");
 
         collateralToken = _collateralToken;
         bullToken = _bullToken;
@@ -93,7 +95,7 @@ contract Market is BPool {
 
         created = now;
         duration = _duration;
-        // initialPrice = _initialPrice;
+        initialPrice = _initialPrice;
 
         collateralCurrency = _collateralCurrency;
         feedCurrencyPair = _feedCurrencyPair;
@@ -118,12 +120,13 @@ contract Market is BPool {
     //     _pushPoolShare(msg.sender, INIT_POOL_SUPPLY);
     // }
 
-    function close()
+    //TODO: remove the parameter
+    function close(int256 _finalPrice)
         public
         _logs_
         _lock_
     {
-        require(stage == Stages.Open, "Function called in wrong stage");
+        require(stage == Stages.Open, "Market: this market is not open");
         // now > created + duration
         require(
             now > badd(created, duration),
@@ -131,7 +134,8 @@ contract Market is BPool {
         );
 
         //TODO: config the method of Chainlink
-        finalPrice = MarketFactory(owner()).getHistoricalPriceByTimestamp(AggregatorV3Interface(chainlinkPriceFeed), badd(created, duration));
+        finalPrice = _finalPrice;
+        //     MarketFactory(owner()).getHistoricalPriceByTimestamp(AggregatorV3Interface(chainlinkPriceFeed), badd(created, duration));
 
         //TODO: maybe should move it to the method?
         require(finalPrice > 0, "Chainlink error");
@@ -159,7 +163,8 @@ contract Market is BPool {
         _logs_
         _lock_
     {
-        require(stage == Stages.Open, "Function called in wrong stage");
+        //TODO: check if now < badd(created, duration)
+        require(stage == Stages.Open, "Market: this market is not open");
         require(_amount > 0, "Invalid amount");
 
         //Get collateral token from sender
@@ -173,7 +178,7 @@ contract Market is BPool {
         totalDeposit = badd(totalDeposit, _amount);
 
         //TODO: use the event
-        // emit Buy(msg.sender, _amount, now);
+        emit Buy(msg.sender, _amount, now);
     }
 
     function redeem(uint256 _amount)
@@ -181,7 +186,7 @@ contract Market is BPool {
         _logs_
         _lock_
     {
-        require(stage == Stages.Closed, "Function called in wrong stage");
+        require(stage == Stages.Closed, "Market: this market is not closed");
         //TODO: use the protocol fee
         require(_amount > 0, "Invalid amount");
         require(totalDeposit >= badd(totalRedemption, _amount), "No collateral left");
@@ -217,6 +222,6 @@ contract Market is BPool {
         totalRedemption = badd(totalRedemption, _amount);
 
         //TODO: use the event
-        // emit Redeem(_marketID, now);
+        emit Redeem(msg.sender, _amount, now);
     }
 }
