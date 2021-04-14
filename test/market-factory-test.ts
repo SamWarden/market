@@ -90,6 +90,7 @@ describe("MarketFactory", async () => {
       await dai.approve(marketFactory.address, collateralBalance);
       // Create market
       const tx = await marketFactory.create(collateralName, currencyPair, duration, collateralBalance);
+      console.log("created");
       expect(tx).to.emit(marketFactory, "Created");
       const txReceipt = await tx.wait();
       const market = Market.attach(txReceipt.events![txReceipt.events!.length - 1].args![0]);
