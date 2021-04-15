@@ -59,8 +59,8 @@ contract BTokenBase is BNum {
 
 contract BToken is BTokenBase, IERC20 {
 
-    string  private _name     = "Balancer Pool Token";
-    string  private _symbol   = "BPT";
+    string  private _name     = "LP Token";
+    string  private _symbol   = "LPT";
     uint8   private _decimals = 18;
 
     function name() public view returns (string memory) {
