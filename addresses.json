@@ -39,6 +39,9 @@
   "kovan": {
     "feeds": {
       "ETH/USD": "0x9326BFA02ADD2366b30bacB125260Af641031331"
-    }
+    },
+    "oracles": ["0x2f90A6D021db21e1B2A077c5a37B3C7E75D15b7e"],
+    "link": "0xa36085F69e2889c224210F603D836748e7dC0088",
+    "JobIds": ["ad752d90098243f8a5c91059d3e5616c"] //get > int256
   }
 }

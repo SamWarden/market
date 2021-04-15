@@ -9,10 +9,17 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./ConditionalToken.sol";
 
 contract ChainlinkData is Ownable, ChainlinkClient {
+    int256[] log;
     // using SafeMath for uint256, uint8;
+    struct RequestsStruct {
+        address target;
+        bytes4 func;
+    }
+
     event SetFeed(string indexed currencyPair, address indexed chainlinkFeed, uint256 time);
 
     mapping(string => address) public feeds;
+    mapping(bytes32 => RequestsStruct) public requests;
     string[] public feedPairs; //list of keys for `feeds`
 
     AggregatorV3Interface internal priceFeed;
@@ -30,39 +37,63 @@ contract ChainlinkData is Ownable, ChainlinkClient {
             "ETH/USD"
         ] = 0x9326BFA02ADD2366b30bacB125260Af641031331;
 
-        setPublicChainlinkToken();
         // oracle = 0x72f3dFf4CD17816604dd2df6C2741e739484CA62;
         // jobId = "bfc49c95584c4b10b61fc88bb2023d68";
         // XdFeed
+
+        setPublicChainlinkToken();
         oracle = 0x56dd6586DB0D08c6Ce7B2f2805af28616E082455;
         jobId = "0391a670ba8e4a2f80750acfe65b0c89";
         fee = 0.1 * 10 ** 18; // 0.1 LINK
     }
 
+    function requestPrice(address _target, bytes4 _func) internal {
 
-    function requestPrice(uint256 _timeout) public returns (bytes32 requestId) {
-        Chainlink.Request memory request = buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
+        Chainlink.Request memory _request = buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
+        _request.add("get", "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+        _request.add("path", "bitcoin.usd");
+        // request.addUint("times", 10**18);
         // request.add("path", "price");
-        request.add("base", "BTC/USDT:CXDXF");
-        request.addUint("until", now + _timeout);
-        
-        return sendChainlinkRequestTo(oracle, request, fee);
+        // request.add("base", "BTC/USDT:CXDXF");
+        // request.addUint("until", now + _timeout);
+        bytes32 _requestId = sendChainlinkRequestTo(oracle, _request, fee);
+        RequestsStruct memory _req = RequestsStruct({
+            target: _target,
+            func: _func
+        });
+        requests[_requestId] = _req;
     }
-    
+
+    function callMethod() public {
+        int256 _price = 1;
+        bytes memory _data = abi.encodeWithSelector(this.method.selector, _price);
+        (bool _success, ) = address(this).staticcall(_data);
+        require(_success, "ChainlinkData: Request failed");
+    }
+    function method(int256 _price) public {
+        log.push(1);
+        log.push(_price);
+    }
+    function makeReq() public {
+        Chainlink.Request memory _request = buildChainlinkRequest(jobId, address(this), this.fulfill2.selector);
+        _request.add("get", "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+        _request.add("path", "bitcoin.usd");
+        bytes32 _requestId = sendChainlinkRequestTo(oracle, _request, fee);
+    }
+    function fulfill2(bytes32 _requestId, int256 _price) public recordChainlinkFulfillment(_requestId)
+    {
+        log.push(33);
+        log.push(_price);
+    }
     /**
      * Receive the response in the form of int256
      */ 
-    function fulfill(bytes32 _requestId, int256 _price) public recordChainlinkFulfillment(_requestId) returns (int256)
+    function fulfill(bytes32 _requestId, int256 _price) public recordChainlinkFulfillment(_requestId)
     {
-        price = _price;
-        called++;
-        // require(
-        //     requestToMarketID[_requestId] > 0,
-        //     "Invalid request"
-        // );
-        
-        // markets[requestToMarketID[_requestId]].initialPrice = _price;
-        // markets[requestToMarketID[_requestId]].status = Status.Running;
+        log.push(22);
+        bytes memory _data = abi.encodeWithSelector(requests[_requestId].func, _price);
+        (bool _success, ) = address(requests[_requestId].target).staticcall(_data);
+        require(_success, "ChainlinkData: Request failed");
     }
 
     function setFeed(

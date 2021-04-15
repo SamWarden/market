@@ -179,20 +179,20 @@ describe("MarketFactory", async () => {
         expect(await bull.balanceOf(owner.address)).to.equal(conditionalBalance.mul(2));
       });
 
-      it("test_market_close", async () => {
-        expect(await market.close(2)).to.emit(market, "Closed");
-        await expect(market.buy(conditionalBalance)).to.be.revertedWith("Market: this market is not open");
-      });
+      // it("test_market_close", async () => {
+      //   expect(await market.close(2)).to.emit(market, "Closed");
+      //   await expect(market.buy(conditionalBalance)).to.be.revertedWith("Market: this market is not open");
+      // });
 
-      it("test_market_redeem", async () => {
-        await expect(market.redeem(conditionalBalance)).to.be.revertedWith("Market: this market is not closed");
-        expect(await market.close(2)).to.emit(market, "Closed");
-        await bull.approve(market.address, conditionalBalance);
-        expect(await market.redeem(conditionalBalance)).to.emit(market, "Redeem");
-        expect(await bull.balanceOf(owner.address)).to.equal(0);
-        expect(await bear.balanceOf(owner.address)).to.equal(conditionalBalance);
-        expect(await dai.balanceOf(owner.address)).to.equal(collateralBalance.add(conditionalBalance));
-      });
+      // it("test_market_redeem", async () => {
+      //   await expect(market.redeem(conditionalBalance)).to.be.revertedWith("Market: this market is not closed");
+      //   expect(await market.close(2)).to.emit(market, "Closed");
+      //   await bull.approve(market.address, conditionalBalance);
+      //   expect(await market.redeem(conditionalBalance)).to.emit(market, "Redeem");
+      //   expect(await bull.balanceOf(owner.address)).to.equal(0);
+      //   expect(await bear.balanceOf(owner.address)).to.equal(conditionalBalance);
+      //   expect(await dai.balanceOf(owner.address)).to.equal(collateralBalance.add(conditionalBalance));
+      // });
 
       it("test_market_spot_price", async () => {
         expect(await market.getSpotPrice(dai.address, bull.address)).to.equal(BigNumber.from("501504513540621866"));

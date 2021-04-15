@@ -10,7 +10,7 @@ import "./balancer/BPool.sol";
 import "./ConditionalToken.sol";
 import "./MarketFactory.sol";
 
-contract Market is BPool, ChainlinkClient  {
+contract Market is BPool {
     event Closed(
         uint256 _time,
         int256  finalPrice,
@@ -58,9 +58,9 @@ contract Market is BPool, ChainlinkClient  {
     ConditionalToken public bullToken;
     ConditionalToken public bearToken;
 
-    address private oracle;
-    bytes32 private jobId;
-    uint256 private fee;
+    // address private oracle;
+    // bytes32 private jobId;
+    // uint256 private fee;
 
     // modifier atStage(Stages _stage) {
     //     require(stage == _stage, "Function called in wrong stage");
@@ -69,18 +69,6 @@ contract Market is BPool, ChainlinkClient  {
 
     constructor() public {
         stage = Stages.Base;
-    }
-
-    function requestPrice(bytes4 callback) private returns (bytes32 requestId) {
-        Chainlink.Request memory request = buildChainlinkRequest(jobId, address(this), callback);
-        request.add("get", "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-        request.add("path", "bitcoin.usd");
-        // request.addUint("times", 10**18);
-        // request.add("path", "price");
-        // request.add("base", "BTC/USDT:CXDXF");
-        // request.addUint("until", now + _timeout);
-        
-        return sendChainlinkRequestTo(oracle, request, fee);
     }
 
     //Call the method after clone Market
@@ -116,21 +104,14 @@ contract Market is BPool, ChainlinkClient  {
         // chainlinkPriceFeed = _chainlinkPriceFeed;
         protocolFee = _protocolFee;
         stage = Stages.Open;
-
-        oracle = 0x2f90A6D021db21e1B2A077c5a37B3C7E75D15b7e;
-        jobId = "ad752d90098243f8a5c91059d3e5616c";
-        fee = 0.1 * 10 ** 18; // 0.1 LINK
-
-        setPublicChainlinkToken();
-        requestPrice(this.open.selector);
+        // setPublicChainlinkToken();
     }
 
-    function open(bytes32 _requestId, int256 _price)
+    function open(int256 _price)
         external
         _logs_
         _lock_
-        recordChainlinkFulfillment(_requestId)
-    //     onlyOwner
+        onlyOwner
     {
         initialPrice = _price;
         // finalize();
@@ -151,23 +132,22 @@ contract Market is BPool, ChainlinkClient  {
         _lock_
         // onlyOwner
     {
-        requestPrice(this._close.selector);
-    }
-
-    //TODO: remove the parameter
-    function _close(bytes32 _requestId, int256 _price)
-        external
-        _logs_
-        _lock_
-        recordChainlinkFulfillment(_requestId)
-    {
         require(stage == Stages.Open, "Market: this market is not open");
         // now > created + duration
         require(
             now > badd(created, duration),
             "Market closing time hasn't yet arrived"
         );
+        MarketFactory(_owner).requestFinalPrice();
+    }
 
+    //TODO: remove the parameter
+    function _close(int256 _price)
+        external
+        _logs_
+        _lock_
+        onlyOwner
+    {
         //TODO: config the method of Chainlink
         finalPrice = _price;
         //     MarketFactory(owner()).getHistoricalPriceByTimestamp(AggregatorV3Interface(chainlinkPriceFeed), badd(created, duration));
@@ -190,7 +170,6 @@ contract Market is BPool, ChainlinkClient  {
         }
 
         emit Closed(now, finalPrice, result, winningToken);
-        requestPrice(this._close.selector);
     }
 
     //Buy new token pair for collateral token

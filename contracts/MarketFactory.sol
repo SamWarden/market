@@ -120,8 +120,10 @@ contract MarketFactory is Ownable, ChainlinkData {
         //Mint the conditional tokens
         _market.buy(_initialBalance);
 
+        //TODO: move it to cloneConstructor
         //Finalize the pool, get initial LP tokens and allow public swaps
         _market.finalize();
+        requestPrice(_marketAddress, _market.open.selector);
 
         //Send LP and bought conditional tokens to the sender
         _market.transfer(msg.sender, _market.INIT_POOL_SUPPLY());
@@ -168,6 +170,11 @@ contract MarketFactory is Ownable, ChainlinkData {
     {
         //Send all tokens to the owner
         require(IERC20(_token).transfer(msg.sender, IERC20(_token).balanceOf(address(this))), "ERR_ERC20_FAILED");
+    }
+
+    function requestFinalPrice() external {
+        require(markets[msg.sender], "MarketFactory: Sender is not market");
+        requestPrice(msg.sender, Market(msg.sender)._close.selector);
     }
 
     function setCollateralCurrency(
@@ -224,7 +231,7 @@ contract MarketFactory is Ownable, ChainlinkData {
             _duration,
             _collateralCurrency,
             _feedCurrencyPair,
-            _chainlinkPriceFeed,
+            // _chainlinkPriceFeed,
             protocolFee
         );
         return _market;
