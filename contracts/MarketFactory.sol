@@ -29,13 +29,12 @@ contract MarketFactory is Ownable, ChainlinkData {
     );
     // event NewConditionalToken(address indexed contractAddress, uint256 _time);
 
-    //TODO: add list of markets and currencies
     mapping(address => bool) public markets;
-    mapping(string => address) public colleteralCurrencies;
+    mapping(string => address) public collateralCurrencies;
 
     //Variables
     address[] public marketList;
-    string[] public colleteralCurrenciesList;
+    string[] public collateralCurrenciesList;
 
     //TODO: maybe the variables should be private
     address private baseMarket;
@@ -52,9 +51,10 @@ contract MarketFactory is Ownable, ChainlinkData {
         baseMarket = _baseMarket;
         baseConditionalToken = _baseConditionalToken;
 
-        colleteralCurrencies["DAI"] = _collateralToken; //0x9326BFA02ADD2366b30bacB125260Af641031331; //!WRONG ADDRESS
+        collateralCurrencies["DAI"] = _collateralToken; //0x9326BFA02ADD2366b30bacB125260Af641031331; //!WRONG ADDRESS
 
-        swapFee = Market(_baseMarket).MIN_FEE();
+        swapFee = 3000000000000000 //0.3% 
+        //Market(_baseMarket).MIN_FEE();
     }
 
     function create(
@@ -67,8 +67,8 @@ contract MarketFactory is Ownable, ChainlinkData {
         returns (address)
     {
         require(
-            colleteralCurrencies[_collateralCurrency] != address(0),
-            "Invalid colleteral currency"
+            collateralCurrencies[_collateralCurrency] != address(0),
+            "Invalid collateral currency"
         );
         require(
             feeds[_feedCurrencyPair] != address(0),
@@ -80,7 +80,7 @@ contract MarketFactory is Ownable, ChainlinkData {
         // );
 
         //TODO: check if _collateralToken is a valid ERC20 contract
-        ERC20 _collateralToken = ERC20(colleteralCurrencies[_collateralCurrency]);
+        ERC20 _collateralToken = ERC20(collateralCurrencies[_collateralCurrency]);
         uint8 _collateralDecimals = _collateralToken.decimals();
 
         //Pull collateral tokens from sender
@@ -94,7 +94,6 @@ contract MarketFactory is Ownable, ChainlinkData {
         ConditionalToken _bearToken = cloneConditionalToken("Bear", "Bear", _collateralDecimals);
 
         //Create a pool of the balancer
-        //TODO: use the market instead of the pool
         Market _market = cloneMarket(
             _collateralToken,
             _bullToken,
@@ -173,7 +172,7 @@ contract MarketFactory is Ownable, ChainlinkData {
     }
 
     function requestFinalPrice() external {
-        require(markets[msg.sender], "MarketFactory: Sender is not market");
+        require(markets[msg.sender], "MarketFactory: caller is not a market");
         requestPrice(msg.sender, Market(msg.sender)._close.selector);
     }
 
@@ -183,27 +182,27 @@ contract MarketFactory is Ownable, ChainlinkData {
     ) public onlyOwner {
         if (_currencyToken != address(0)) {
             // If it's going to add a new currency
-            // Save the _currencyName to colleteralCurrenciesList if it isn't there
-            if (colleteralCurrencies[_currencyName] == address(0)) {
-                colleteralCurrenciesList.push(_currencyName);
+            // Save the _currencyName to collateralCurrenciesList if it isn't there
+            if (collateralCurrencies[_currencyName] == address(0)) {
+                collateralCurrenciesList.push(_currencyName);
             }
             // Add the address with the pair
-            colleteralCurrencies[_currencyName] = _currencyToken;
+            collateralCurrencies[_currencyName] = _currencyToken;
         } else {
             // If it's going to delete the currency
             // Check that the currency is exists
-            require(colleteralCurrencies[_currencyName] != address(0), "There isn't this currency in the list of colleteralCurrencies");
+            require(collateralCurrencies[_currencyName] != address(0), "There isn't this currency in the list of collateralCurrencies");
             // Find and remove the curency
-            for (uint8 i = 0; i < colleteralCurrenciesList.length; i++) {
-                if (keccak256(abi.encodePacked(colleteralCurrenciesList[i])) == keccak256(abi.encodePacked(_currencyName))) {
+            for (uint8 i = 0; i < collateralCurrenciesList.length; i++) {
+                if (keccak256(abi.encodePacked(collateralCurrenciesList[i])) == keccak256(abi.encodePacked(_currencyName))) {
                     // Shift the last element to index of the deleted pair
-                    colleteralCurrenciesList[i] = colleteralCurrenciesList[colleteralCurrenciesList.length - 1];
-                    colleteralCurrenciesList.pop();
+                    collateralCurrenciesList[i] = collateralCurrenciesList[collateralCurrenciesList.length - 1];
+                    collateralCurrenciesList.pop();
                     break;
                 }
             }
             // Clear the address of the pair
-            colleteralCurrencies[_currencyName] = address(0);
+            collateralCurrencies[_currencyName] = address(0);
         }
         emit SetCurrency(_currencyName, _currencyToken, now);
     }
