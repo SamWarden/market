@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./ConditionalToken.sol";
 
 contract ChainlinkData is Ownable, ChainlinkClient {
-    int256[] log;
     // using SafeMath for uint256, uint8;
     struct RequestsStruct {
         address target;
@@ -42,13 +41,12 @@ contract ChainlinkData is Ownable, ChainlinkClient {
         // XdFeed
 
         setPublicChainlinkToken();
-        oracle = 0x56dd6586DB0D08c6Ce7B2f2805af28616E082455;
-        jobId = "0391a670ba8e4a2f80750acfe65b0c89";
+        oracle = 0x2f90A6D021db21e1B2A077c5a37B3C7E75D15b7e;
+        jobId = "ad752d90098243f8a5c91059d3e5616c";
         fee = 0.1 * 10 ** 18; // 0.1 LINK
     }
 
     function requestPrice(address _target, bytes4 _func) internal {
-
         Chainlink.Request memory _request = buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
         _request.add("get", "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
         _request.add("path", "bitcoin.usd");
@@ -64,35 +62,13 @@ contract ChainlinkData is Ownable, ChainlinkClient {
         requests[_requestId] = _req;
     }
 
-    function callMethod() public {
-        int256 _price = 1;
-        bytes memory _data = abi.encodeWithSelector(this.method.selector, _price);
-        (bool _success, ) = address(this).staticcall(_data);
-        require(_success, "ChainlinkData: Request failed");
-    }
-    function method(int256 _price) public {
-        log.push(1);
-        log.push(_price);
-    }
-    function makeReq() public {
-        Chainlink.Request memory _request = buildChainlinkRequest(jobId, address(this), this.fulfill2.selector);
-        _request.add("get", "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-        _request.add("path", "bitcoin.usd");
-        bytes32 _requestId = sendChainlinkRequestTo(oracle, _request, fee);
-    }
-    function fulfill2(bytes32 _requestId, int256 _price) public recordChainlinkFulfillment(_requestId)
-    {
-        log.push(33);
-        log.push(_price);
-    }
     /**
      * Receive the response in the form of int256
      */ 
     function fulfill(bytes32 _requestId, int256 _price) public recordChainlinkFulfillment(_requestId)
     {
-        log.push(22);
         bytes memory _data = abi.encodeWithSelector(requests[_requestId].func, _price);
-        (bool _success, ) = address(requests[_requestId].target).staticcall(_data);
+        (bool _success, ) = address(requests[_requestId].target).call(_data);
         require(_success, "ChainlinkData: Request failed");
     }
 
