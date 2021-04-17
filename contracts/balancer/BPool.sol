@@ -13,16 +13,15 @@
 
 pragma solidity ^0.6.0;
 
-import "../OwnableClone.sol";
 import "./BToken.sol";
 import "./BMath.sol";
 
-contract BPool is BToken, BMath {
+contract BPool is BBronze, BToken, BMath {
     /**
      * @dev Throws if called by any account other than the owner.
      */
     modifier onlyOwner() {
-        require(_owner == msg.sender, "BPool: caller is not the factory");
+        require(_owner == msg.sender, "BPool: caller is not the owner");
         _;
     }
 
@@ -79,12 +78,12 @@ contract BPool is BToken, BMath {
     bool private _mutex;
 
     address internal _owner;    // BFactory address to push token exitFee to
-    bool private _publicSwap; // true if PUBLIC can call SWAP functions
+    bool internal _publicSwap; // true if PUBLIC can call SWAP functions
 
     // `setSwapFee` and `finalize` require CONTROL
     // `finalize` sets `PUBLIC can SWAP`, `PUBLIC can JOIN`
     uint private _swapFee;
-    bool private _finalized;
+    bool internal _finalized;
 
     address[] private _tokens;
     mapping(address=>Record) private _records;
@@ -93,6 +92,7 @@ contract BPool is BToken, BMath {
     function cloneConstructor() internal virtual {
         _owner = msg.sender;
         _swapFee = MIN_FEE;
+        //TODC: remove it
         _publicSwap = false;
         _finalized = false;
     }
@@ -180,13 +180,13 @@ contract BPool is BToken, BMath {
         return _records[token].balance;
     }
 
-    function getSwapFee()
-        external view
-        _viewlock_
-        returns (uint)
-    {
-        return _swapFee;
-    }
+    // function getSwapFee()
+    //     external view
+    //     _viewlock_
+    //     returns (uint)
+    // {
+    //     return _swapFee;
+    // }
 
     function setSwapFee(uint swapFee)
         external
@@ -219,11 +219,12 @@ contract BPool is BToken, BMath {
         require(!_finalized, "ERR_IS_FINALIZED");
         require(_tokens.length >= MIN_BOUND_TOKENS, "ERR_MIN_TOKENS");
 
-        _finalized = true;
-        _publicSwap = true;
+        //Move it to `Market.open`
+        // _finalized = true;
+        // _publicSwap = true;
 
         _mintPoolShare(INIT_POOL_SUPPLY);
-        _push(msg.sender, INIT_POOL_SUPPLY);
+        _pushPoolShare(msg.sender, INIT_POOL_SUPPLY);
     }
 
 
@@ -366,7 +367,7 @@ contract BPool is BToken, BMath {
             _pullUnderlying(t, msg.sender, tokenAmountIn);
         }
         _mintPoolShare(poolAmountOut);
-        _push(msg.sender, poolAmountOut);
+        _pushPoolShare(msg.sender, poolAmountOut);
     }
 
     function exitPool(uint poolAmountIn, uint[] calldata minAmountsOut)
@@ -384,9 +385,9 @@ contract BPool is BToken, BMath {
         uint ratio = bdiv(pAiAfterExitFee, poolTotal);
         require(ratio != 0, "ERR_MATH_APPROX");
 
-        _pull(msg.sender, poolAmountIn);
-        _push(_owner, exitFee);
-        _burn(pAiAfterExitFee);
+        _pullPoolShare(msg.sender, poolAmountIn);
+        _pushPoolShare(_owner, exitFee);
+        _burnPoolShare(pAiAfterExitFee);
 
         for (uint i = 0; i < _tokens.length; i++) {
             address t = _tokens[i];
@@ -561,7 +562,7 @@ contract BPool is BToken, BMath {
         emit LOG_JOIN(msg.sender, tokenIn, tokenAmountIn);
 
         _mintPoolShare(poolAmountOut);
-        _push(msg.sender, poolAmountOut);
+        _pushPoolShare(msg.sender, poolAmountOut);
         _pullUnderlying(tokenIn, msg.sender, tokenAmountIn);
 
         return poolAmountOut;
@@ -599,7 +600,7 @@ contract BPool is BToken, BMath {
         emit LOG_JOIN(msg.sender, tokenIn, tokenAmountIn);
 
         _mintPoolShare(poolAmountOut);
-        _push(msg.sender, poolAmountOut);
+        _pushPoolShare(msg.sender, poolAmountOut);
         _pullUnderlying(tokenIn, msg.sender, tokenAmountIn);
 
         return tokenAmountIn;
@@ -637,9 +638,9 @@ contract BPool is BToken, BMath {
 
         emit LOG_EXIT(msg.sender, tokenOut, tokenAmountOut);
 
-        _pull(msg.sender, poolAmountIn);
-        _burn(bsub(poolAmountIn, exitFee));
-        _push(_owner, exitFee);
+        _pullPoolShare(msg.sender, poolAmountIn);
+        _burnPoolShare(bsub(poolAmountIn, exitFee));
+        _pushPoolShare(_owner, exitFee);
         _pushUnderlying(tokenOut, msg.sender, tokenAmountOut);
 
         return tokenAmountOut;
@@ -677,9 +678,9 @@ contract BPool is BToken, BMath {
 
         emit LOG_EXIT(msg.sender, tokenOut, tokenAmountOut);
 
-        _pull(msg.sender, poolAmountIn);
-        _burn(bsub(poolAmountIn, exitFee));
-        _push(_owner, exitFee);
+        _pullPoolShare(msg.sender, poolAmountIn);
+        _burnPoolShare(bsub(poolAmountIn, exitFee));
+        _pushPoolShare(_owner, exitFee);
         _pushUnderlying(tokenOut, msg.sender, tokenAmountOut);        
 
         return poolAmountIn;
@@ -704,17 +705,17 @@ contract BPool is BToken, BMath {
         require(xfer, "ERR_ERC20_FALSE");
     }
 
-    // function _pull(address from, uint amount)
-    //     internal
-    // {
-    //     _pull(from, amount);
-    // }
+    function _pullPoolShare(address from, uint amount)
+        internal
+    {
+        _pull(from, amount);
+    }
 
-    // function _push(address to, uint amount)
-    //     internal
-    // {
-    //     _push(to, amount);
-    // }
+    function _pushPoolShare(address to, uint amount)
+        internal
+    {
+        _push(to, amount);
+    }
 
     function _mintPoolShare(uint amount)
         internal
@@ -722,10 +723,10 @@ contract BPool is BToken, BMath {
         _mint(amount);
     }
 
-    // function _burn(uint amount)
-    //     internal
-    // {
-    //     _burn(amount);
-    // }
+    function _burnPoolShare(uint amount)
+        internal
+    {
+        _burn(amount);
+    }
 
 }
