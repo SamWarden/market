@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./ConditionalToken.sol";
 
 contract ChainlinkData is Ownable, ChainlinkClient {
-    // using SafeMath for uint256, uint8;
     struct RequestsStruct {
         address target;
         bytes4 func;
@@ -17,43 +16,44 @@ contract ChainlinkData is Ownable, ChainlinkClient {
 
     event SetFeed(string indexed currencyPair, address indexed chainlinkFeed, uint256 time);
 
-    mapping(string => address) public feeds;
-    mapping(bytes32 => RequestsStruct) public requests;
-    string[] public feedPairs; //list of keys for `feeds`
+    mapping(bytes32 => RequestsStruct) private requests;
+    mapping(string => bool) public baseCurrencies;
 
-    AggregatorV3Interface internal priceFeed;
+    string[] public baseCurrenciesList; //list of keys for `baseCurrencies`
 
     address private oracle;
     bytes32 private jobId;
     uint256 private fee;
-    int256 public price;
-    uint8 public called;
 
     constructor() public {
-        //TODO: Add moreoracles
-        //Network: Kovan Aggregator: ETH/USD
-        feeds[
-            "ETH/USD"
-        ] = 0x9326BFA02ADD2366b30bacB125260Af641031331;
 
         // oracle = 0x72f3dFf4CD17816604dd2df6C2741e739484CA62;
         // jobId = "bfc49c95584c4b10b61fc88bb2023d68";
         // XdFeed
 
         setPublicChainlinkToken();
+        //Network: Kovan, job: GET -> int256
         oracle = 0x2f90A6D021db21e1B2A077c5a37B3C7E75D15b7e;
         jobId = "ad752d90098243f8a5c91059d3e5616c";
         fee = 0.1 * 10 ** 18; // 0.1 LINK
     }
 
-    function requestPrice(address _target, bytes4 _func) internal {
+    function requestPrice(address _target, bytes4 _func, string memory _symbol) internal {
         Chainlink.Request memory _request = buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
-        _request.add("get", "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-        _request.add("path", "bitcoin.usd");
-        // request.addUint("times", 10**18);
+        _request.add("get", string(abi.encodePacked(
+            "https://pro-api.coinmarketcap.com/v1/tools/price-conversion?CMC_PRO_API_KEY=680cb675-8562-4f06-9336-3eeef35eb575&amount=1&convert=USD&symbol=", //&time=1618613496
+            _symbol
+        )));
+        _request.add("path", "data.quote.USD.price");
+        _request.addUint("times", 10**18);
+
+        // https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=USD&ts=1618571480
+        // _request.add("get", "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+        // _request.add("path", "bitcoin.usd");
         // request.add("path", "price");
         // request.add("base", "BTC/USDT:CXDXF");
         // request.addUint("until", now + _timeout);
+
         bytes32 _requestId = sendChainlinkRequestTo(oracle, _request, fee);
         RequestsStruct memory _req = RequestsStruct({
             target: _target,
@@ -65,45 +65,51 @@ contract ChainlinkData is Ownable, ChainlinkClient {
     /**
      * Receive the response in the form of int256
      */ 
-    function fulfill(bytes32 _requestId, int256 _price) public recordChainlinkFulfillment(_requestId)
+    function fulfill(bytes32 _requestId, int256 _price) external recordChainlinkFulfillment(_requestId)
     {
         bytes memory _data = abi.encodeWithSelector(requests[_requestId].func, _price);
         (bool _success, ) = address(requests[_requestId].target).call(_data);
         require(_success, "ChainlinkData: Request failed");
     }
 
-    function setFeed(
-        string memory _currencyPair,
-        address _chainlinkFeed
-    ) public onlyOwner {
-        if (_chainlinkFeed != address(0)) {
-            // If it's going to add a new pair
-            // Save the _currencyPair to feedPairs if it isn't there
-            if (feeds[_currencyPair] == address(0)) {
-                feedPairs.push(_currencyPair);
+    // function setBaseCurrencies(byte[5][] memory _newBaseCurrencies) external onlyOwner {
+    //     //Remove (set `false`) all old base currencies in the baseCurrencies mapping
+    //     for (uint8 i = 0; i < baseCurrenciesList.length; i++) {
+    //         baseCurrencies[baseCurrenciesList[i]] = false;
+    //     }
+    //     //Add (set `true`) all new base currencies to the baseCurrencies mapping
+    //     for (uint8 i = 0; i < _newBaseCurrencies.length; i++) {
+    //         baseCurrencies[_newBaseCurrencies[i]] = true;
+    //     }
+    //     //Set this new base currencies list
+    //     baseCurrenciesList = _newBaseCurrencies;
+    // }
+
+    function setBaseCurrency(string memory _baseCurrency, bool _value) external onlyOwner {
+        if (_value) {
+            // If it's going to add a new currency
+            // Save the _baseCurrency to baseCurrenciesList if it isn't there
+            if (!baseCurrencies[_baseCurrency]) {
+                baseCurrenciesList.push(_baseCurrency);
             }
-            // Add the address with the pair
-            feeds[_currencyPair] = _chainlinkFeed;
         } else {
-            // If it's going to delete the pair
-            // Check that the pair is exists
-            require(feeds[_currencyPair] != address(0), "There isn't the currency pair in the list of feeds");
-            // Find and remove the pair
-            for (uint8 i = 0; i < feedPairs.length; i++) {
-                if (keccak256(abi.encodePacked(feedPairs[i])) == keccak256(abi.encodePacked(_currencyPair))) {
-                    // Shift the last element to index of the deleted pair
-                    feedPairs[i] = feedPairs[feedPairs.length - 1];
-                    feedPairs.pop();
+            // If it's going to delete the currency
+            // Check that the currency is exists
+            require(baseCurrencies[_baseCurrency], "There isn't such base currency in the list of baseCurrencies");
+            // Find and remove the currency
+            for (uint8 i = 0; i < baseCurrenciesList.length; i++) {
+                if (keccak256(abi.encodePacked(baseCurrenciesList[i])) == keccak256(abi.encodePacked(_baseCurrency))) {
+                    // Shift the last element to index of the deleted currency
+                    baseCurrenciesList[i] = baseCurrenciesList[baseCurrenciesList.length - 1];
+                    baseCurrenciesList.pop();
                     break;
                 }
             }
-            // Clear the address of the pair
-            feeds[_currencyPair] = address(0);
         }
-        emit SetFeed(_currencyPair, _chainlinkFeed, now);
+        baseCurrencies[_baseCurrency] = _value;
     }
 
-    function setChainlink(address _oracle, bytes32 _jobId, uint256 _fee) public onlyOwner {
+    function setChainlink(address _oracle, bytes32 _jobId, uint256 _fee) external onlyOwner {
         oracle = _oracle;
         jobId = _jobId;
         fee = _fee;
@@ -113,7 +119,7 @@ contract ChainlinkData is Ownable, ChainlinkClient {
      * Returns the latest price
      */
     function getHistoricalPriceByTimestamp(AggregatorV3Interface _feed, uint256 _timestamp)
-        public
+        external
         view
         returns (int256)
     {
