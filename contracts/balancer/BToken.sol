@@ -63,15 +63,15 @@ contract BToken is BTokenBase, IERC20 {
     string  private constant _symbol   = "LPT";
     uint8   private constant _decimals = 18;
 
-    function name() public view returns (string memory) {
+    function name() public pure returns (string memory) {
         return _name;
     }
 
-    function symbol() public view returns (string memory) {
+    function symbol() public pure returns (string memory) {
         return _symbol;
     }
 
-    function decimals() public view returns(uint8) {
+    function decimals() public pure returns(uint8) {
         return _decimals;
     }
 
