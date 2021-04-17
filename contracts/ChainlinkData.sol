@@ -14,7 +14,11 @@ contract ChainlinkData is Ownable, ChainlinkClient {
         bytes4 func;
     }
 
-    event SetFeed(string indexed currencyPair, address indexed chainlinkFeed, uint256 time);
+    event SetBaseCurrency(
+        string  indexed baseCurrency,
+        bool    indexed value,
+        uint256         time
+    );
 
     mapping(bytes32 => RequestsStruct) private requests;
     mapping(string => bool) public baseCurrencies;
@@ -107,6 +111,7 @@ contract ChainlinkData is Ownable, ChainlinkClient {
             }
         }
         baseCurrencies[_baseCurrency] = _value;
+        SetBaseCurrency(_baseCurrency, _value, now);
     }
 
     function setChainlink(address _oracle, bytes32 _jobId, uint256 _fee) external onlyOwner {
