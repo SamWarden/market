@@ -11,8 +11,13 @@ import "./ConditionalToken.sol";
 import "./MarketFactory.sol";
 
 contract Market is BPool {
+    event Open(
+        uint256 time,
+        int256  initialPrice
+    );
+
     event Closed(
-        uint256 _time,
+        uint256 time,
         int256  finalPrice,
         Results result,
         address winningToken
@@ -38,8 +43,8 @@ contract Market is BPool {
     Stages  public stage;
 
     // address private chainlinkPriceFeed;
+    string  public baseCurrency;
     string  public collateralCurrency;
-    string  public feedCurrencyPair;
 
     int256  public initialPrice;
     int256  public finalPrice;
@@ -48,8 +53,8 @@ contract Market is BPool {
     uint256 public created;
     uint256 public duration;
 
-    uint256 private totalDeposit;
-    uint256 private totalRedemption;
+    uint256 public totalDeposit;
+    uint256 public totalRedemption;
 
     //TODO: maybe it should depends on decimals of the collateral token
     uint    public protocolFee;
@@ -57,15 +62,6 @@ contract Market is BPool {
     ERC20   public collateralToken;
     ConditionalToken public bullToken;
     ConditionalToken public bearToken;
-
-    // address private oracle;
-    // bytes32 private jobId;
-    // uint256 private fee;
-
-    // modifier atStage(Stages _stage) {
-    //     require(stage == _stage, "Function called in wrong stage");
-    //     _;
-    // }
 
     constructor() public {
         stage = Stages.Base;
@@ -77,20 +73,16 @@ contract Market is BPool {
         ConditionalToken _bullToken,
         ConditionalToken _bearToken,
         uint256 _duration,
+        string memory _baseCurrency,
         string memory _collateralCurrency,
-        string memory _feedCurrencyPair,
-        // address _chainlinkPriceFeed,
         uint _protocolFee
     )
         external
         _logs_
         //_lock_
-        // returns (bytes32 requestId)
     {
         require(stage == Stages.None, "Market: This Market is already initialized");
         BPool.cloneConstructor();
-        //Get initial price from chainlink
-        //     MarketFactory(owner()).getLatestPrice(AggregatorV3Interface(_chainlinkPriceFeed));
 
         collateralToken = _collateralToken;
         bullToken = _bullToken;
@@ -99,12 +91,11 @@ contract Market is BPool {
         created = now;
         duration = _duration;
 
+        baseCurrency = _baseCurrency;
         collateralCurrency = _collateralCurrency;
-        feedCurrencyPair = _feedCurrencyPair;
-        // chainlinkPriceFeed = _chainlinkPriceFeed;
         protocolFee = _protocolFee;
+
         stage = Stages.Open;
-        // setPublicChainlinkToken();
     }
 
     function open(int256 _price)
@@ -114,49 +105,33 @@ contract Market is BPool {
         onlyOwner
     {
         initialPrice = _price;
-        // finalize();
-    //     require(stage == Clones.Created, "Function called in wrong stage");
-    //     require(_tokens.length >= MIN_BOUND_TOKENS, "ERR_MIN_TOKENS");
+        _finalized = true;
+        _publicSwap = true;
 
-    //     stage = Stages.Open;
-    //     _publicSwap = true;
-
-    //     _mintPoolShare(INIT_POOL_SUPPLY);
-    //     _pushPoolShare(msg.sender, INIT_POOL_SUPPLY);
+        emit Open(now, initialPrice);
     }
-
 
     function close()
         external
         _logs_
         _lock_
-        // onlyOwner
     {
         require(stage == Stages.Open, "Market: this market is not open");
-        // now > created + duration
+        // if now > created + duration
         require(
-            now > badd(created, duration),
+            now > SafeMath.add(created, duration),
             "Market closing time hasn't yet arrived"
         );
         MarketFactory(_owner).requestFinalPrice();
     }
 
-    //TODO: remove the parameter
     function _close(int256 _price)
         external
         _logs_
         _lock_
         onlyOwner
     {
-        //TODO: config the method of Chainlink
         finalPrice = _price;
-        //     MarketFactory(owner()).getHistoricalPriceByTimestamp(AggregatorV3Interface(chainlinkPriceFeed), badd(created, duration));
-
-        //TODO: maybe should move it to the method?
-        require(finalPrice > 0, "Chainlink error");
-        //TODO: require(initialPrice != _finalPrice, "Price didn't change");
-
-        stage = Stages.Closed;
 
         //TODO: add draw
         if (finalPrice > initialPrice) {
@@ -168,17 +143,18 @@ contract Market is BPool {
         } else {
             result = Results.Draw;
         }
+        stage = Stages.Closed;
 
         emit Closed(now, finalPrice, result, winningToken);
     }
 
-    //Buy new token pair for collateral token
+    //Buy conditional tokens for collateral token
     function buy(uint256 _amount)
         external
         _logs_
         _lock_
     {
-        //TODO: check if now < badd(created, duration)
+        //TODO: check if now < created + duration
         require(stage == Stages.Open, "Market: this market is not open");
         require(_amount > 0, "Invalid amount");
 
@@ -190,53 +166,60 @@ contract Market is BPool {
         bearToken.mint(msg.sender, _amount);
 
         //Increase total deposited collateral
-        totalDeposit = badd(totalDeposit, _amount);
+        totalDeposit = SafeMath.add(totalDeposit, _amount);
 
-        //TODO: use the event
         emit Buy(msg.sender, _amount, now);
     }
 
-    function redeem(uint256 _amount)
+    function redeem(uint256 _tokenAmountIn)
         external
         _logs_
         _lock_
     {
         require(stage == Stages.Closed, "Market: this market is not closed");
         //TODO: use the protocol fee
-        require(_amount > 0, "Invalid amount");
-        require(totalDeposit >= badd(totalRedemption, _amount), "No collateral left");
+        //TODO: check too small redeem
+        require(_tokenAmountIn > 0, "Invalid amount");
+        require(totalDeposit >= SafeMath.add(totalRedemption, _tokenAmountIn), "No collateral left");
+
+        uint256 _tokenAmountOut;
 
         if (result != Results.Draw) {
             //If there is winner
             //Burn win tokens from a sender
-            ConditionalToken(winningToken).burnFrom(msg.sender, _amount);
+            ConditionalToken(winningToken).burnFrom(msg.sender, _tokenAmountIn);
+            _tokenAmountOut = _tokenAmountIn;
         } else {
             // if a Draw
-            // conditionalToken -= conditionalTokenAllowance / ((bearAllow + bullAllow) / (amount * 2))
+            // conditionalToken -= conditionalTokenAllowance / ((bearAllow + bullAllow) / amount)
             // Get allowance of conditional tokens from the sender
             uint256 _bullAllowance = bullToken.allowance(msg.sender, address(this));
             uint256 _bearAllowance = bearToken.allowance(msg.sender, address(this));
-            require(badd(_bullAllowance, _bearAllowance) < bmul(_amount, 2), "Total allowance of conditonal tokens is lower than the given amount");
-            // ratio = totalAllowance / conditionalAmount
-            uint256 ratio = bdiv(badd(_bullAllowance, _bearAllowance), bmul(_amount, 2));
+            require(SafeMath.add(_bullAllowance, _bearAllowance) >= _tokenAmountIn, "Total allowance of conditonal tokens is lower than the given amount");
+            // ratio = (bullAllowance + bearAllowance) / tokenAmountIn
+            uint256 ratio = SafeMath.div(SafeMath.add(_bullAllowance, _bearAllowance), _tokenAmountIn);
 
             // if not 0, burn the tokens
             if (_bullAllowance > 0) {
-               bullToken.burnFrom(msg.sender, bdiv(_bullAllowance, ratio));
+               bullToken.burnFrom(msg.sender, SafeMath.div(_bullAllowance, ratio));
             }
             if (_bearAllowance > 0) {
-                bearToken.burnFrom(msg.sender, bdiv(_bearAllowance, ratio));
+                bearToken.burnFrom(msg.sender, SafeMath.div(_bearAllowance, ratio));
             }
+            // AO = AI * 0.5
+            _tokenAmountOut = SafeMath.div(_tokenAmountIn, 2);
         }
-        uint _protocolFee = bmul(_amount, protocolFee);
+        // bmul: (AO * pf + (BONE / 2)) / BONE
+        uint _protocolFee = bmul(_tokenAmountOut, protocolFee);
 
-        collateralToken.transfer(msg.sender, bsub(_amount, _protocolFee));
+        collateralToken.transfer(msg.sender, SafeMath.sub(_tokenAmountOut, _protocolFee));
         collateralToken.transfer(_owner, _protocolFee);
+        // collateralToken.transfer(msg.sender, _tokenAmountOut);
 
         //Increase total redemed collateral
-        totalRedemption = badd(totalRedemption, _amount);
+        totalRedemption = SafeMath.add(totalRedemption, _tokenAmountOut);
 
         //TODO: use the event
-        emit Redeem(msg.sender, _amount, now);
+        emit Redeem(msg.sender, _tokenAmountOut, now);
     }
 }
