@@ -22,7 +22,7 @@ contract MarketFactory is Ownable, ChainlinkData {
         uint256         duration
     );
 
-    event SetCurrency(
+    event SetCollateralCurrency(
         string  indexed currencyName,
         address indexed _collateralToken,
         uint256         time
@@ -47,19 +47,20 @@ contract MarketFactory is Ownable, ChainlinkData {
     uint256 public constant CONDITIONAL_TOKEN_WEIGHT = 10 * 10**18;
     uint256 public constant COLLATERAL_TOKEN_WEIGHT  = CONDITIONAL_TOKEN_WEIGHT * 2;
 
-    constructor(address _baseMarket, address _baseConditionalToken, address _collateralToken) public {
+    constructor(address _baseMarket, address _baseConditionalToken) public {
         baseMarket = _baseMarket;
         baseConditionalToken = _baseConditionalToken;
 
-        collateralCurrencies["DAI"] = _collateralToken; //0x9326BFA02ADD2366b30bacB125260Af641031331; //!WRONG ADDRESS
+        // collateralCurrencies["DAI"] = _collateralToken; //0x9326BFA02ADD2366b30bacB125260Af641031331; //!WRONG ADDRESS
 
-        swapFee = 3000000000000000 //0.3% 
+        swapFee = 3000000000000000; //0.3% 
         //Market(_baseMarket).MIN_FEE();
     }
 
     function create(
+        //TODO: swap base and collateral parameters
+        string memory _baseCurrency,
         string memory _collateralCurrency,
-        string memory _feedCurrencyPair,
         uint256 _duration,
         uint256 _approvedBalance
     )
@@ -67,12 +68,12 @@ contract MarketFactory is Ownable, ChainlinkData {
         returns (address)
     {
         require(
-            collateralCurrencies[_collateralCurrency] != address(0),
-            "Invalid collateral currency"
+            baseCurrencies[_baseCurrency],
+            "MarketFactory: Invalid base currency"
         );
         require(
-            feeds[_feedCurrencyPair] != address(0),
-            "Invalid currency pair"
+            collateralCurrencies[_collateralCurrency] != address(0),
+            "MarketFactory: Invalid collateral currency"
         );
         // require(
         //     _duration >= 600 seconds && _duration < 365 days,
@@ -86,32 +87,27 @@ contract MarketFactory is Ownable, ChainlinkData {
         //Pull collateral tokens from sender
         _collateralToken.transferFrom(msg.sender, address(this), _approvedBalance);
 
-        //Estamate balance tokens
+        //Estamate initial balance tokens
         uint256 _initialBalance = SafeMath.div(_approvedBalance, 2);
 
-        //Contract factory (clone) for two ERC20 tokens
+        //Clone bull and bear ERC20 tokens
         ConditionalToken _bullToken = cloneConditionalToken("Bull", "Bull", _collateralDecimals);
         ConditionalToken _bearToken = cloneConditionalToken("Bear", "Bear", _collateralDecimals);
 
-        //Create a pool of the balancer
+        //Clone the market with the balancer pool
         Market _market = cloneMarket(
             _collateralToken,
             _bullToken,
             _bearToken,
             _duration,
-            _collateralCurrency,
-            _feedCurrencyPair
+            _baseCurrency,
+            _collateralCurrency
         );
         address _marketAddress = address(_market);
 
-        //Set the swap fee
-        _market.setSwapFee(swapFee);
-
-        //Add conditional and collateral tokens to the pool with liqudity
-        addConditionalToken(_marketAddress, _bullToken, _initialBalance);
-        addConditionalToken(_marketAddress, _bearToken, _initialBalance);
-        addToken(_marketAddress, _collateralToken, _initialBalance, COLLATERAL_TOKEN_WEIGHT);
-        // addCollateralToken(_marketAddress, _collateralToken, _initialBalance);
+        //Allow the market mint and burn conditional tokens
+        _bullToken.transferOwnership(_marketAddress);
+        _bearToken.transferOwnership(_marketAddress);
 
         //Approve pool to buy tokens
         _collateralToken.approve(_marketAddress, _initialBalance);
@@ -119,26 +115,40 @@ contract MarketFactory is Ownable, ChainlinkData {
         //Mint the conditional tokens
         _market.buy(_initialBalance);
 
+        //Add conditional and collateral tokens to the pool with liqudity
+        addToken(_marketAddress, _bullToken, _initialBalance, CONDITIONAL_TOKEN_WEIGHT);
+        addToken(_marketAddress, _bearToken, _initialBalance, CONDITIONAL_TOKEN_WEIGHT);
+        addToken(_marketAddress, _collateralToken, _initialBalance, COLLATERAL_TOKEN_WEIGHT);
+        // addCollateralToken(_marketAddress, _collateralToken, _initialBalance);
+
         //TODO: move it to cloneConstructor
         //Finalize the pool, get initial LP tokens and allow public swaps
         _market.finalize();
-        requestPrice(_marketAddress, _market.open.selector);
 
-        //Send LP and bought conditional tokens to the sender
+        //Make a request of price for this market
+        requestPrice(_marketAddress, _market.open.selector, _baseCurrency);
+
+        //Send LP to the sender
         _market.transfer(msg.sender, _market.INIT_POOL_SUPPLY());
-        _bullToken.transfer(msg.sender, _initialBalance);
-        _bearToken.transfer(msg.sender, _initialBalance);
+        // _bullToken.transfer(msg.sender, _initialBalance);
+        // _bearToken.transfer(msg.sender, _initialBalance);
 
+        //Save the address of the market
         markets[_marketAddress] = true;
         marketList.push(_marketAddress);
 
-        emit Created(_marketAddress, _feedCurrencyPair, _collateralCurrency, now, _duration);
-
+        emit Created(_marketAddress, _baseCurrency, _collateralCurrency, now, _duration);
         return _marketAddress;
     }
 
     function isMarket(address _market) public view returns (bool) {
         return markets[_market];
+    }
+
+    function requestFinalPrice() external {
+        //Make a request of price if sender is a market to its _close method
+        require(markets[msg.sender], "MarketFactory: caller is not a market");
+        requestPrice(msg.sender, Market(msg.sender)._close.selector, Market(msg.sender).baseCurrency());
     }
 
     function setProtocolFee(uint _protocolFee)
@@ -163,18 +173,23 @@ contract MarketFactory is Ownable, ChainlinkData {
         swapFee = _swapFee;
     }
 
-    function collect(address _token)
-        external
-        onlyOwner
-    {
+    function collect(address _token) external onlyOwner {
         //Send all tokens to the owner
         require(IERC20(_token).transfer(msg.sender, IERC20(_token).balanceOf(address(this))), "ERR_ERC20_FAILED");
     }
 
-    function requestFinalPrice() external {
-        require(markets[msg.sender], "MarketFactory: caller is not a market");
-        requestPrice(msg.sender, Market(msg.sender)._close.selector);
-    }
+    // function setCollateralCurrencies(byte[5][] memory _newCollateralCurrencies, address[] memory _newCollateralTokens) external onlyOwner {
+    //     //Remove (set `address(0)`) all old collateral currencies in the collateralCurrencies mapping
+    //     for (uint8 i = 0; i < collateralCurrenciesList.length; i++) {
+    //         collateralCurrencies[collateralCurrenciesList[i]] = address(0);
+    //     }
+    //     //Add all new collateral currencies to the collateralCurrencies mapping
+    //     for (uint8 i = 0; i < _newCollateralCurrencies.length; i++) {
+    //         collateralCurrencies[_newCollateralCurrencies[i]] = _newCollateralTokens[i];
+    //     }
+    //     //Set this new collateral currencies list
+    //     collateralCurrenciesList = _newCollateralCurrencies;
+    // }
 
     function setCollateralCurrency(
         string memory _currencyName,
@@ -187,7 +202,6 @@ contract MarketFactory is Ownable, ChainlinkData {
                 collateralCurrenciesList.push(_currencyName);
             }
             // Add the address with the pair
-            collateralCurrencies[_currencyName] = _currencyToken;
         } else {
             // If it's going to delete the currency
             // Check that the currency is exists
@@ -201,10 +215,9 @@ contract MarketFactory is Ownable, ChainlinkData {
                     break;
                 }
             }
-            // Clear the address of the pair
-            collateralCurrencies[_currencyName] = address(0);
         }
-        emit SetCurrency(_currencyName, _currencyToken, now);
+        collateralCurrencies[_currencyName] = _currencyToken;
+        SetCollateralCurrency(_currencyName, _currencyToken, now);
     }
 
     function cloneMarket(
@@ -212,14 +225,14 @@ contract MarketFactory is Ownable, ChainlinkData {
         ConditionalToken _bullToken,
         ConditionalToken _bearToken,
         uint256 _duration,
-        string memory _collateralCurrency,
-        string memory _feedCurrencyPair
+        string memory _baseCurrency,
+        string memory _collateralCurrency
     )
         internal
         returns (Market)
     {
-        //Get chainlink price feed by _feedCurrencyPair
-        address _chainlinkPriceFeed = feeds[_feedCurrencyPair];
+        //Get chainlink price feed by _baseCurrency
+        // address _chainlinkPriceFeed = baseCurrencies[_baseCurrency];
 
         Market _market = Market(Clones.clone(baseMarket));
         // emit NewMarket(address(_market), now);
@@ -228,11 +241,15 @@ contract MarketFactory is Ownable, ChainlinkData {
             _bullToken,
             _bearToken,
             _duration,
+            _baseCurrency,
             _collateralCurrency,
-            _feedCurrencyPair,
             // _chainlinkPriceFeed,
             protocolFee
         );
+
+        //Set the swap fee
+        _market.setSwapFee(swapFee); //0.3%
+
         return _market;
     }
 
@@ -242,28 +259,6 @@ contract MarketFactory is Ownable, ChainlinkData {
         _conditionalToken.cloneConstructor(_name, _symbol, _decimals);
         return _conditionalToken;
     }
-
-    function addConditionalToken(address _market, ConditionalToken _conditionalToken, uint256 _conditionalBalance)
-        internal
-    {
-        //Mint bear and bull tokens
-        _conditionalToken.mint(address(this), _conditionalBalance);
-
-        //To allow the market to mint a conditional token
-        _conditionalToken.transferOwnership(_market);
-
-        addToken(_market, _conditionalToken, _conditionalBalance, CONDITIONAL_TOKEN_WEIGHT);
-    }
-
-    // function addCollateralToken(address _market, ERC20 _collateralToken, uint256 _collateralBalance)
-    //     internal
-    // {
-    //     //Pull collateral tokens from sender
-    //     //TODO: try to make the transfer to the pool directly
-    //     _collateralToken.transferFrom(msg.sender, address(this), _collateralBalance);
-
-    //     addToken(_market, _collateralToken, _collateralBalance, COLLATERAL_TOKEN_WEIGHT);
-    // }
 
     function addToken(address _market, ERC20 _token, uint256 _balance, uint256 _denorm)
         internal
