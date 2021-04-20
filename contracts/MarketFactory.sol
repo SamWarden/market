@@ -4,16 +4,13 @@ pragma solidity ^0.6.0;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
-import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
+import "@chainlink/contracts/src/v0.6/interfaces/LinkTokenInterface.sol";
 import "./ERC20.sol";
 import "./ConditionalToken.sol";
 import "./Market.sol";
 import "./ChainlinkData.sol";
-// import "./balancer/BConst.sol";
 
-//TODO: what if to inherit the BFactory?
 contract MarketFactory is Ownable, ChainlinkData {
-    //TODO: add more info to events
     event Created(
         address indexed market,
         string  indexed feedCurrencyPair,
@@ -24,41 +21,44 @@ contract MarketFactory is Ownable, ChainlinkData {
 
     event SetCollateralCurrency(
         string  indexed currencyName,
-        address indexed _collateralToken,
+        address indexed collateralToken,
         uint256         time
     );
-    // event NewConditionalToken(address indexed contractAddress, uint256 _time);
 
-    mapping(address => bool) public markets;
+    event NewConditionalToken(
+        address indexed contractAddress,
+        string  indexed name,
+        uint256         time
+    );
+
+    mapping(address => bool) internal markets;
     mapping(string => address) public collateralCurrencies;
 
     //Variables
     address[] public marketList;
     string[] public collateralCurrenciesList;
 
-    //TODO: maybe the variables should be private
+    //TODO: maybe the variables should be public
     address private baseMarket;
     address private baseConditionalToken;
+    LinkTokenInterface private linkToken;
+
     uint public protocolFee;
     uint public swapFee;
 
     //Constants
-    // uint256 public constant CONDITIONAL_TOKEN_WEIGHT = (10).mul(BConst.BONE);
     uint256 public constant CONDITIONAL_TOKEN_WEIGHT = 10 * 10**18;
     uint256 public constant COLLATERAL_TOKEN_WEIGHT  = CONDITIONAL_TOKEN_WEIGHT * 2;
 
     constructor(address _baseMarket, address _baseConditionalToken) public {
         baseMarket = _baseMarket;
         baseConditionalToken = _baseConditionalToken;
+        linkToken = LinkTokenInterface(chainlinkTokenAddress());
 
-        // collateralCurrencies["DAI"] = _collateralToken; //0x9326BFA02ADD2366b30bacB125260Af641031331; //!WRONG ADDRESS
-
-        swapFee = 3000000000000000; //0.3% 
-        //Market(_baseMarket).MIN_FEE();
+        swapFee = 3000000000000000; //0.3%
     }
 
     function create(
-        //TODO: swap base and collateral parameters
         string memory _baseCurrency,
         string memory _collateralCurrency,
         uint256 _duration,
@@ -69,23 +69,25 @@ contract MarketFactory is Ownable, ChainlinkData {
     {
         require(
             baseCurrencies[_baseCurrency],
-            "MarketFactory: Invalid base currency"
+            "MarketFactory: invalid base currency"
         );
         require(
             collateralCurrencies[_collateralCurrency] != address(0),
-            "MarketFactory: Invalid collateral currency"
+            "MarketFactory: invalid collateral currency"
         );
-        // require(
-        //     _duration >= 600 seconds && _duration < 365 days,
-        //     "Invalid duration"
-        // );
+        require(
+            _duration >= 600 seconds && _duration < 365 days,
+            "MarketFactory: invalid duration"
+        );
 
-        //TODO: check if _collateralToken is a valid ERC20 contract
         ERC20 _collateralToken = ERC20(collateralCurrencies[_collateralCurrency]);
         uint8 _collateralDecimals = _collateralToken.decimals();
 
         //Pull collateral tokens from sender
         _collateralToken.transferFrom(msg.sender, address(this), _approvedBalance);
+
+        //Pull link tokens for making requests
+        linkToken.transferFrom(msg.sender, address(this), linkFee * 2);
 
         //Estamate initial balance tokens
         uint256 _initialBalance = SafeMath.div(_approvedBalance, 2);
@@ -119,16 +121,14 @@ contract MarketFactory is Ownable, ChainlinkData {
         addToken(_marketAddress, _bullToken, _initialBalance, CONDITIONAL_TOKEN_WEIGHT);
         addToken(_marketAddress, _bearToken, _initialBalance, CONDITIONAL_TOKEN_WEIGHT);
         addToken(_marketAddress, _collateralToken, _initialBalance, COLLATERAL_TOKEN_WEIGHT);
-        // addCollateralToken(_marketAddress, _collateralToken, _initialBalance);
 
-        //TODO: move it to cloneConstructor
-        //Finalize the pool, get initial LP tokens and allow public swaps
+        //Get initial LP tokens
         _market.finalize();
 
         //Make a request of price for this market
         requestPrice(_marketAddress, _market.open.selector, _baseCurrency);
 
-        //Send LP to the sender
+        //Send LP tokens to the sender
         _market.transfer(msg.sender, _market.INIT_POOL_SUPPLY());
         // _bullToken.transfer(msg.sender, _initialBalance);
         // _bearToken.transfer(msg.sender, _initialBalance);
@@ -145,6 +145,14 @@ contract MarketFactory is Ownable, ChainlinkData {
         return markets[_market];
     }
 
+    function marketListLength() public view returns (uint256) {
+        return marketList.length;
+    }
+
+    function collateralCurrenciesListLength() public view returns (uint256) {
+        return collateralCurrenciesList.length;
+    }
+
     function requestFinalPrice() external {
         //Make a request of price if sender is a market to its _close method
         require(markets[msg.sender], "MarketFactory: caller is not a market");
@@ -155,7 +163,6 @@ contract MarketFactory is Ownable, ChainlinkData {
         external
         onlyOwner
     {
-        // require(!_finalized, "ERR_IS_FINALIZED");
         // //TODO: is there need these requrements?
         // require(_protocolFee >= MIN_FEE, "ERR_MIN_FEE");
         // require(_protocolFee <= MAX_FEE, "ERR_MAX_FEE");
@@ -166,7 +173,6 @@ contract MarketFactory is Ownable, ChainlinkData {
         external
         onlyOwner
     {
-        // require(!_finalized, "ERR_IS_FINALIZED");
         // //TODO: is there need these requrements?
         require(_swapFee >= Market(baseMarket).MIN_FEE(), "ERR_MIN_FEE");
         require(_swapFee <= Market(baseMarket).MAX_FEE(), "ERR_MAX_FEE");
@@ -175,21 +181,8 @@ contract MarketFactory is Ownable, ChainlinkData {
 
     function collect(address _token) external onlyOwner {
         //Send all tokens to the owner
-        require(IERC20(_token).transfer(msg.sender, IERC20(_token).balanceOf(address(this))), "ERR_ERC20_FAILED");
+        require(IERC20(_token).transfer(msg.sender, IERC20(_token).balanceOf(address(this))), "MarketFactory: collect transfer failed");
     }
-
-    // function setCollateralCurrencies(byte[5][] memory _newCollateralCurrencies, address[] memory _newCollateralTokens) external onlyOwner {
-    //     //Remove (set `address(0)`) all old collateral currencies in the collateralCurrencies mapping
-    //     for (uint8 i = 0; i < collateralCurrenciesList.length; i++) {
-    //         collateralCurrencies[collateralCurrenciesList[i]] = address(0);
-    //     }
-    //     //Add all new collateral currencies to the collateralCurrencies mapping
-    //     for (uint8 i = 0; i < _newCollateralCurrencies.length; i++) {
-    //         collateralCurrencies[_newCollateralCurrencies[i]] = _newCollateralTokens[i];
-    //     }
-    //     //Set this new collateral currencies list
-    //     collateralCurrenciesList = _newCollateralCurrencies;
-    // }
 
     function setCollateralCurrency(
         string memory _currencyName,
@@ -205,7 +198,7 @@ contract MarketFactory is Ownable, ChainlinkData {
         } else {
             // If it's going to delete the currency
             // Check that the currency is exists
-            require(collateralCurrencies[_currencyName] != address(0), "There isn't this currency in the list of collateralCurrencies");
+            require(collateralCurrencies[_currencyName] != address(0), "MarketFactory: there isn't this currency in the list of collateralCurrencies");
             // Find and remove the curency
             for (uint8 i = 0; i < collateralCurrenciesList.length; i++) {
                 if (keccak256(abi.encodePacked(collateralCurrenciesList[i])) == keccak256(abi.encodePacked(_currencyName))) {
@@ -231,11 +224,8 @@ contract MarketFactory is Ownable, ChainlinkData {
         internal
         returns (Market)
     {
-        //Get chainlink price feed by _baseCurrency
-        // address _chainlinkPriceFeed = baseCurrencies[_baseCurrency];
-
         Market _market = Market(Clones.clone(baseMarket));
-        // emit NewMarket(address(_market), now);
+        // emit NewMarket(address(_market), _baseCurrency, _collateralCurrency, now, _duration);
         _market.cloneConstructor(
             _collateralToken,
             _bullToken,
@@ -243,7 +233,6 @@ contract MarketFactory is Ownable, ChainlinkData {
             _duration,
             _baseCurrency,
             _collateralCurrency,
-            // _chainlinkPriceFeed,
             protocolFee
         );
 
@@ -255,7 +244,7 @@ contract MarketFactory is Ownable, ChainlinkData {
 
     function cloneConditionalToken(string memory _name, string memory _symbol, uint8 _decimals) internal returns (ConditionalToken) {
         ConditionalToken _conditionalToken = ConditionalToken(Clones.clone(baseConditionalToken));
-        // emit NewConditionalToken(address(_conditionalToken), now, _name, _symbol, _decimals);
+        emit NewConditionalToken(address(_conditionalToken), _name, now);
         _conditionalToken.cloneConstructor(_name, _symbol, _decimals);
         return _conditionalToken;
     }
