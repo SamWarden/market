@@ -170,6 +170,10 @@ contract BPool is BBronze, BToken, BMath {
     //     return bdiv(denorm, _totalWeight);
     // }
 
+    function owner() public view virtual returns (address) {
+        return _owner;
+    }
+
     function getBalance(address token)
         external view
         _viewlock_
@@ -199,16 +203,6 @@ contract BPool is BBronze, BToken, BMath {
         require(swapFee <= MAX_FEE, "ERR_MAX_FEE");
         _swapFee = swapFee;
     }
-
-    // function setPublicSwap(bool public_)
-    //     external
-    //     _logs_
-    //     _lock_
-    //     onlyOwner
-    // {
-    //     require(!_finalized, "ERR_IS_FINALIZED");
-    //     _publicSwap = public_;
-    // }
 
     function finalize()
         external
@@ -273,49 +267,6 @@ contract BPool is BBronze, BToken, BMath {
             _pushUnderlying(token, _owner, tokenExitFee);
         }
     }
-
-    // function unbind(address token)
-    //     external
-    //     _logs_
-    //     _lock_
-    //     onlyOwner
-    // {
-    //     require(_records[token].bound, "ERR_NOT_BOUND");
-    //     require(!_finalized, "ERR_IS_FINALIZED");
-
-    //     uint tokenBalance = _records[token].balance;
-    //     uint tokenExitFee = bmul(tokenBalance, EXIT_FEE);
-
-    //     _totalWeight = bsub(_totalWeight, _records[token].denorm);
-
-    //     // Swap the token-to-unbind with the last token,
-    //     // then delete the last token
-    //     uint index = _records[token].index;
-    //     uint last = _tokens.length - 1;
-    //     _tokens[index] = _tokens[last];
-    //     _records[_tokens[index]].index = index;
-    //     _tokens.pop();
-    //     _records[token] = Record({
-    //         bound: false,
-    //         index: 0,
-    //         denorm: 0,
-    //         balance: 0
-    //     });
-
-    //     _pushUnderlying(token, msg.sender, bsub(tokenBalance, tokenExitFee));
-    //     _pushUnderlying(token, _owner, tokenExitFee);
-    // }
-
-    // Absorb any tokens that have been sent to this contract into the pool
-    // function gulp(address token)
-    //     external
-    //     _logs_
-    //     _lock_
-    //     onlyOwner
-    // {
-    //     require(_records[token].bound, "ERR_NOT_BOUND");
-    //     _records[token].balance = IERC20(token).balanceOf(address(this));
-    // }
 
     function getSpotPrice(address tokenIn, address tokenOut)
         external view

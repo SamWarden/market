@@ -16,14 +16,14 @@ pragma solidity ^0.6.0;
 import "./BColor.sol";
 
 contract BConst is BBronze {
-    uint internal constant BONE              = 10**18;
+    uint public constant BONE                = 10**18;
 
     uint internal constant MIN_BOUND_TOKENS  = 2;
     uint internal constant MAX_BOUND_TOKENS  = 8;
 
     uint public constant MIN_FEE             = BONE / 10**6;
     uint public constant MAX_FEE             = BONE / 10;
-    uint internal constant EXIT_FEE          = 0;
+    uint public constant EXIT_FEE            = 0;
 
     uint internal constant MIN_WEIGHT        = BONE;
     uint internal constant MAX_WEIGHT        = BONE * 50;

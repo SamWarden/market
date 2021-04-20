@@ -20,7 +20,7 @@ abstract contract OwnableClone is Context {
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    function cloneConstructor () internal virtual {
+    function cloneConstructor() internal virtual {
         address msgSender = _msgSender();
         _owner = msgSender;
         emit OwnershipTransferred(address(0), msgSender);
