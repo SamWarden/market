@@ -111,12 +111,24 @@ contract TToken {
         return true;
     }
 
-    function burn(uint amt) public returns (bool) {
-        require(_balance[address(this)] >= amt, "ERR_INSUFFICIENT_BAL");
-        _balance[address(this)] = sub(_balance[address(this)], amt);
+    // function burn(uint amt) public returns (bool) {
+    //     require(_balance[address(this)] >= amt, "ERR_INSUFFICIENT_BAL");
+    //     _balance[address(this)] = sub(_balance[address(this)], amt);
+    //     _totalSupply = sub(_totalSupply, amt);
+    //     emit Transfer(address(this), address(0), amt);
+    //     return true;
+    // }
+
+    function _burn(address src, uint amt) private returns (bool) {
+        require(_balance[src] >= amt, "ERR_INSUFFICIENT_BAL");
+        _balance[src] = sub(_balance[src], amt);
         _totalSupply = sub(_totalSupply, amt);
-        emit Transfer(address(this), address(0), amt);
+        emit Transfer(src, address(0), amt);
         return true;
+    }
+
+    function burn(uint256 amt) public virtual _onlyOwner_ {
+        _burn(msg.sender, amt);
     }
 
     function transfer(address dst, uint amt) external returns (bool) {
