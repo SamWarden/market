@@ -6,7 +6,6 @@ import "./ERC20Burnable.sol";
 import "./OwnableClone.sol";
 
 contract ConditionalToken is ERC20Burnable {
-    //TODO: is it ok that this has the same name that an event in the MarketFactory?
     event Created(
         string  indexed name,
         string  indexed symbol,
@@ -15,7 +14,7 @@ contract ConditionalToken is ERC20Burnable {
     );
 
     bool private _created;
-    //TODO: add lock to base contract with constructor
+
     constructor() public {
        _created = true;
     }
