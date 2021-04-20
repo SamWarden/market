@@ -35,8 +35,8 @@ contract Market is BPool {
         uint256         time
     );
 
-    enum Stages {None, Base, Open, Closed}
-    enum Results {Unknown, Bull, Bear, Draw}
+    enum Stages {None, Base, Initialized, Open, Closed}
+    enum Results {Unknown, Draw, Bull, Bear}
 
     //TODO: remove default values
     Results public result;
@@ -81,7 +81,7 @@ contract Market is BPool {
         _logs_
         //_lock_
     {
-        require(stage == Stages.None, "Market: This Market is already initialized");
+        require(stage == Stages.None, "Market: this Market is already initialized");
         BPool.cloneConstructor();
 
         collateralToken = _collateralToken;
@@ -95,7 +95,7 @@ contract Market is BPool {
         collateralCurrency = _collateralCurrency;
         protocolFee = _protocolFee;
 
-        stage = Stages.Open;
+        stage = Stages.Initialized;
     }
 
     function open(int256 _price)
@@ -104,7 +104,9 @@ contract Market is BPool {
         _lock_
         onlyOwner
     {
+        require(stage == Stages.Initialized, "Market: this market is not initialized");
         initialPrice = _price;
+        stage = Stages.Open;
         _finalized = true;
         _publicSwap = true;
 
@@ -120,7 +122,7 @@ contract Market is BPool {
         // if now > created + duration
         require(
             now > SafeMath.add(created, duration),
-            "Market closing time hasn't yet arrived"
+            "Market: market closing time hasn't yet arrived"
         );
         MarketFactory(_owner).requestFinalPrice();
     }
@@ -131,6 +133,7 @@ contract Market is BPool {
         _lock_
         onlyOwner
     {
+        require(stage == Stages.Open, "Market: this market is not open");
         finalPrice = _price;
 
         //TODO: add draw
@@ -155,8 +158,8 @@ contract Market is BPool {
         _lock_
     {
         //TODO: check if now < created + duration
-        require(stage == Stages.Open, "Market: this market is not open");
-        require(_amount > 0, "Invalid amount");
+        require(stage == Stages.Open || (stage == Stages.Initialized && msg.sender == _owner), "Market: this market is not open");
+        require(_amount > 0, "Market: amount has to be greater than 0");
 
         //Get collateral token from sender
         collateralToken.transferFrom(msg.sender, address(this), _amount);
@@ -177,10 +180,8 @@ contract Market is BPool {
         _lock_
     {
         require(stage == Stages.Closed, "Market: this market is not closed");
-        //TODO: use the protocol fee
         //TODO: check too small redeem
-        require(_tokenAmountIn > 0, "Invalid amount");
-        require(totalDeposit >= SafeMath.add(totalRedemption, _tokenAmountIn), "No collateral left");
+        require(_tokenAmountIn > 0, "Market: tokenAmountIn has to be greater than 0");
 
         uint256 _tokenAmountOut;
 
@@ -195,7 +196,7 @@ contract Market is BPool {
             // Get allowance of conditional tokens from the sender
             uint256 _bullAllowance = bullToken.allowance(msg.sender, address(this));
             uint256 _bearAllowance = bearToken.allowance(msg.sender, address(this));
-            require(SafeMath.add(_bullAllowance, _bearAllowance) >= _tokenAmountIn, "Total allowance of conditonal tokens is lower than the given amount");
+            require(SafeMath.add(_bullAllowance, _bearAllowance) >= _tokenAmountIn, "Market: total allowance of conditonal tokens is lower than the given amount");
             // ratio = (bullAllowance + bearAllowance) / tokenAmountIn
             uint256 ratio = SafeMath.div(SafeMath.add(_bullAllowance, _bearAllowance), _tokenAmountIn);
 
@@ -209,6 +210,9 @@ contract Market is BPool {
             // AO = AI * 0.5
             _tokenAmountOut = SafeMath.div(_tokenAmountIn, 2);
         }
+
+        require(totalDeposit >= SafeMath.add(totalRedemption, _tokenAmountOut), "Market: no collateral left");
+
         // bmul: (AO * pf + (BONE / 2)) / BONE
         uint _protocolFee = bmul(_tokenAmountOut, protocolFee);
 
