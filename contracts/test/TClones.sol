@@ -7,9 +7,11 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 contract TClones {
     event Cloned(address indexed clone);
 
+    address public clone;
+
     function copy(address _contract) external returns (address) {
-        address _clone = Clones.clone(_contract);
-        emit Cloned(_clone);
-        return _clone;
+        clone = Clones.clone(_contract);
+        emit Cloned(clone);
+        return clone;
     }
 }
