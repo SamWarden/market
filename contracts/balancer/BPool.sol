@@ -225,7 +225,7 @@ contract BPool is BBronze, BToken, BMath {
     function bind(address token, uint balance, uint denorm)
         external
         _logs_
-        // _lock_  Bind does not lock because it jumps to `rebind`, which does
+        _lock_
         onlyOwner
     {
         require(!_records[token].bound, "ERR_IS_BOUND");
